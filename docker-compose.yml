@@ -5,6 +5,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    expose:
+      - "8000"
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     volumes:
@@ -15,6 +17,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    expose:
+      - "80"
     depends_on:
       - backend
     environment:
