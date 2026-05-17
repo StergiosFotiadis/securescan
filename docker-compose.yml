@@ -8,7 +8,6 @@ services:
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     volumes:
-      - ./backend:/app
       - /var/run/docker.sock:/var/run/docker.sock # In case docker scanner is added
       - /tmp:/tmp # For git cloning temp dirs
 
@@ -18,8 +17,5 @@ services:
       dockerfile: Dockerfile
     depends_on:
       - backend
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
     environment:
       - VITE_API_URL=http://localhost:8000
