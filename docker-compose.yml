@@ -18,10 +18,10 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - VITE_API_URL=https://api-securescan.techflowlabs.gr
-    expose:
-      - "8082"
+        - VITE_API_URL=http://DEPLOY_HOST:8000
+    ports:
+      - "8082:80"
     depends_on:
       - backend
     environment:
-      - VITE_API_URL=https://api-securescan.techflowlabs.gr
+      - VITE_API_URL=http://DEPLOY_HOST:8000
