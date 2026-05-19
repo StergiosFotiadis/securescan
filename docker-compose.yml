@@ -10,8 +10,8 @@ services:
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock # In case docker scanner is added
-      - /tmp:/tmp # For git cloning temp dirs
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp:/tmp
 
   frontend:
     build:
@@ -20,7 +20,7 @@ services:
       args:
         - VITE_API_URL=https://api-securescan.techflowlabs.gr
     ports:
-      - "8082"
+      - "8082:80"
     depends_on:
       - backend
     environment:

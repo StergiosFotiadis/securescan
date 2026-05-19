@@ -1,20 +1,21 @@
-FROM python:3.11-slim
+# Lock down to a stable Debian release tag
+FROM python:3.12-slim-bookworm
 
 WORKDIR /app
 
 # ── System packages ────────────────────────────────────────────────────────────
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        git curl wget ca-certificates gnupg unzip \
-        # C compiler — required by cargo to link Rust crates
-        build-essential \
-        # Java (Maven uses the JDK)
-        default-jdk-headless maven \
-        # PHP
-        php-cli php-zip php-curl php-json \
-        # Ruby
-        ruby-full \
+# Fixes exit code 100 by recreating missing man directories for Java/Maven
+RUN mkdir -p /usr/share/man/man1 \
+    && apt-get update -o Acquire::Retries=3 \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    git curl wget ca-certificates gnupg unzip \
+    build-essential \
+    default-jdk-headless maven \
+    php-cli php-zip php-curl php-json \
+    ruby-full \
     && rm -rf /var/lib/apt/lists/*
+
+# (The rest of your backend setup code goes here... e.g., COPY requirements, pip install, etc.)
 
 # ── Node.js 20 ─────────────────────────────────────────────────────────────────
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
