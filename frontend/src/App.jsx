@@ -224,7 +224,15 @@ function App() {
               </div>
               <div className="status-info">
                 <h3>AI Code Review</h3>
-                <p>{scanStatus.ai === 'done' ? (results?.results?.ai_review?.status === 'error' ? 'Failed (No API Key)' : 'Completed') : (scanStatus.ai === 'scanning' ? 'Analyzing...' : 'Pending')}</p>
+                <p>
+                  {scanStatus.ai === 'done' ? (
+                    results?.results?.ai_review?.status === 'error' 
+                      ? `Failed (${results?.results?.ai_review?.error || 'No API Key'})` 
+                      : 'Completed'
+                  ) : (
+                    scanStatus.ai === 'scanning' ? 'Analyzing...' : 'Pending'
+                  )}
+                </p>
               </div>
             </div>
           </div>
@@ -295,6 +303,20 @@ function App() {
                   <div className="ai-review-card">
                     <div className="ai-content">
                       {results.results.ai_review.ai_output}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {results.results?.ai_review?.status === 'error' && (
+                <div className="results-section">
+                  <h2 className="section-title">
+                    <Bot size={24} color="#ff7b72" />
+                    Claude AI Review Failed
+                  </h2>
+                  <div className="ai-review-card" style={{ borderColor: 'rgba(255,123,114,0.3)' }}>
+                    <div className="ai-content" style={{ color: '#ff7b72' }}>
+                      Error: {results.results.ai_review.error || 'Unknown error occurred during AI review.'}
                     </div>
                   </div>
                 </div>
