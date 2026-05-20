@@ -17,9 +17,11 @@ app.add_middleware(
 
 @app.get("/health")
 def health_check():
+    key = os.environ.get("ANTHROPIC_API_KEY")
     return {
         "status": "ok",
-        "has_api_key": os.environ.get("ANTHROPIC_API_KEY") is not None
+        "has_api_key": key is not None,
+        "api_key_length": len(key) if key else 0
     }
 
 app.include_router(scan.router)
