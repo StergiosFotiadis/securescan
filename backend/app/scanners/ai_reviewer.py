@@ -65,9 +65,8 @@ async def review(repo_path: str, project_types: List[str]) -> ModuleResult:
     
     try:
         response = await client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-3-5-sonnet-20240620",
             max_tokens=4000,
-            temperature=0,
             messages=[
                 {"role": "user", "content": prompt}
             ]
