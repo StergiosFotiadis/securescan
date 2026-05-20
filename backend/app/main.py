@@ -1,3 +1,4 @@
+import os
 # pyrefly: ignore [missing-import]
 from fastapi import FastAPI
 # pyrefly: ignore [missing-import]
@@ -16,6 +17,12 @@ app.add_middleware(
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok"}
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    return {
+        "status": "ok",
+        "has_api_key": key is not None,
+        "api_key_length": len(key) if key else 0,
+        "api_key_prefix": key[:10] if key else None
+    }
 
 app.include_router(scan.router)
