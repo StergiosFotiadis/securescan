@@ -5,11 +5,17 @@ from typing import List
 from anthropic import AsyncAnthropic
 from app.schemas.scan import ModuleResult
 
-client = AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
-
 async def review(repo_path: str, project_types: List[str]) -> ModuleResult:
-    if not os.environ.get("ANTHROPIC_API_KEY"):
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
         return ModuleResult(status="error", error="ANTHROPIC_API_KEY is not set")
+    
+    # Strip any accidental whitespaces or quotes
+    api_key = api_key.strip().strip("'\"")
+    if not api_key:
+         return ModuleResult(status="error", error="ANTHROPIC_API_KEY is not set")
+         
+    client = AsyncAnthropic(api_key=api_key)
     
     # Select files based on priority
     target_files = []
