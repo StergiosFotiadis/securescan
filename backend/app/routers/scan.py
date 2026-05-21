@@ -87,6 +87,27 @@ async def delete_repo_history(repo_url: str):
     return {"deleted": True}
 
 
+@router.get("/vuln-history")
+async def get_all_vuln_history():
+    """Return all stored vulnerability scan histories for every scanned repo."""
+    raw = storage.get_all_vuln_history()
+    return {
+        "repos": [
+            {"repo_url": url, "scans": scans}
+            for url, scans in raw.items()
+        ]
+    }
+
+
+@router.delete("/vuln-history")
+async def delete_vuln_repo_history(repo_url: str):
+    """Delete all stored vulnerability scans for a specific repo."""
+    deleted = storage.delete_vuln_repo(repo_url)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="No vulnerability history found for this repo")
+    return {"deleted": True}
+
+
 @router.post("/scan", response_model=ScanResponse)
 async def run_scan(request: ScanRequest):
     # Load previous AI reviews for this repo before cloning
@@ -111,6 +132,23 @@ async def run_scan(request: ScanRequest):
         # Persist the new AI review if it succeeded
         if results["ai_review"].status == "done" and results["ai_review"].ai_output:
             storage.append_review(request.repo_url, results["ai_review"].ai_output)
+
+        # Persist vulnerability results for every scan (empty list is a valid baseline)
+        all_vulns = []
+        for ecosystem in SCANNER_REGISTRY:
+            if ecosystem in project_types:
+                module_result = results.get(ecosystem)
+                if module_result and module_result.vulnerabilities:
+                    for v in module_result.vulnerabilities:
+                        all_vulns.append({
+                            "package_name": v.package_name,
+                            "version": v.version,
+                            "severity": v.severity,
+                            "description": v.description,
+                            "cve_id": v.cve_id,
+                            "scanner_type": v.scanner_type,
+                        })
+        storage.append_vuln_scan(request.repo_url, all_vulns, project_types)
 
         return ScanResponse(
             project_types=project_types,
