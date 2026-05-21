@@ -703,7 +703,7 @@ function PackageHistoryView({ apiFetch }) {
 // ─── Main Scanner App ─────────────────────────────────────────────────────────
 
 function ScannerApp({ apiFetch }) {
-  const [repoUrl, setRepoUrl] = useState('');
+  const [repoUrl, setRepoUrl] = useState(() => localStorage.getItem('last_repo_url') || '');
   const [githubToken, setGithubToken] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [results, setResults] = useState(null);
@@ -712,6 +712,31 @@ function ScannerApp({ apiFetch }) {
   const [sortBy, setSortBy] = useState('severity');
   const [scanStatus, setScanStatus] = useState({ detect: 'idle', scanners: 'idle', ai: 'idle' });
   const [scanComplete, setScanComplete] = useState(false);
+  const [formSticky, setFormSticky] = useState(false);
+  const sentinelRef = useRef(null);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => setFormSticky(!entry.isIntersecting),
+      { threshold: 0, rootMargin: '-80px 0px 0px 0px' }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  const handleRipple = (e) => {
+    if (isScanning || !repoUrl) return;
+    const btn = e.currentTarget;
+    const rect = btn.getBoundingClientRect();
+    const ripple = document.createElement('span');
+    ripple.className = 'btn-ripple';
+    ripple.style.left = `${e.clientX - rect.left}px`;
+    ripple.style.top = `${e.clientY - rect.top}px`;
+    btn.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 650);
+  };
 
   const handleScan = async (e) => {
     e.preventDefault();
@@ -732,6 +757,7 @@ function ScannerApp({ apiFetch }) {
       if (!response.ok) { const e = await response.json(); throw new Error(e.detail || 'Scan failed'); }
       setScanStatus({ detect: 'done', scanners: 'scanning', ai: 'scanning' });
       const data = await response.json();
+      localStorage.setItem('last_repo_url', repoUrl);
       setResults(data);
       setScanStatus({ detect: 'done', scanners: 'done', ai: 'done' });
       setScanComplete(true);
@@ -793,7 +819,8 @@ function ScannerApp({ apiFetch }) {
         <p className="subtitle">Universal Security Scanner for GitHub Repositories</p>
       </header>
 
-      <form className="search-container" onSubmit={handleScan}>
+      <div ref={sentinelRef} style={{ height: 1, marginBottom: '-1px' }} />
+      <form className={`search-container${formSticky ? ' search-form-sticky' : ''}`} onSubmit={handleScan}>
         <div className="input-wrapper">
           <Code className="input-icon" size={20} />
           <input type="url" className="repo-input" placeholder="GitHub Repository URL"
@@ -804,7 +831,8 @@ function ScannerApp({ apiFetch }) {
           <input type="password" className="repo-input" placeholder="Token (Optional)"
             value={githubToken} onChange={e => setGithubToken(e.target.value)} disabled={isScanning} />
         </div>
-        <button type="submit" className={`scan-btn ${isScanning ? 'scanning' : ''}`} disabled={isScanning || !repoUrl}>
+        <button type="submit" className={`scan-btn ${isScanning ? 'scanning' : ''}`}
+          disabled={isScanning || !repoUrl} onMouseDown={handleRipple}>
           {isScanning ? <><Loader2 size={20} className="loader" /> Scanning...</> : <><Search size={20} /> Scan Repo</>}
         </button>
       </form>
