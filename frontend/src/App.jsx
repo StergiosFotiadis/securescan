@@ -7,8 +7,9 @@ import {
   Code, Terminal, Key, History, ChevronDown, ChevronRight,
   User, Lock, LogOut, Trash2,
   ArrowUpDown, SlidersHorizontal, Package,
-  TrendingUp, TrendingDown, Minus,
+  TrendingUp, TrendingDown, Minus, Copy, ExternalLink,
 } from 'lucide-react';
+import confetti from 'canvas-confetti';
 
 import './index.css';
 
@@ -131,23 +132,50 @@ function AIMarkdown({ children }) {
   );
 }
 
+function copyText(text) {
+  navigator.clipboard.writeText(text).catch(() => {});
+  window.dispatchEvent(new CustomEvent('app:toast', { detail: { message: `Copied: ${text}` } }));
+}
+
 function VulnCard({ vuln, isNew = false }) {
   const sev = vuln.severity?.toLowerCase() || 'high';
+  const handleCardClick = () => {
+    if (vuln.cve_id) window.open(`https://nvd.nist.gov/vuln/detail/${vuln.cve_id}`, '_blank', 'noopener,noreferrer');
+  };
   return (
-    <div className={`vuln-card vuln-${sev}${isNew ? ' vuln-card-new' : ''}`}>
+    <div
+      className={`vuln-card vuln-${sev}${isNew ? ' vuln-card-new' : ''}${vuln.cve_id ? ' vuln-card-link' : ''}`}
+      onClick={vuln.cve_id ? handleCardClick : undefined}
+    >
       {isNew && <span className="vuln-new-badge">NEW</span>}
+      {vuln.cve_id && <ExternalLink size={13} className="vuln-external-icon" />}
       <div className="vuln-header">
         <div>
-          <div className="vuln-pkg">{vuln.package_name}</div>
+          <div className="vuln-pkg-row">
+            <span className="vuln-pkg">{vuln.package_name}</span>
+            <button className="copy-btn" onClick={(e) => { e.stopPropagation(); copyText(vuln.package_name); }} title="Copy package name">
+              <Copy size={11} />
+            </button>
+          </div>
           <div className="vuln-version">v{vuln.version}</div>
         </div>
         <span className={`severity-badge badge-${sev}`}>{vuln.severity}</span>
       </div>
       <p className="vuln-desc">{vuln.description}</p>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
-        {vuln.cve_id
-          ? <a href={`https://nvd.nist.gov/vuln/detail/${vuln.cve_id}`} target="_blank" rel="noopener noreferrer" className="vuln-cve">{vuln.cve_id}</a>
-          : <span className="vuln-cve" style={{ opacity: 0.5 }}>No CVE</span>}
+        {vuln.cve_id ? (
+          <div className="vuln-cve-row">
+            <a href={`https://nvd.nist.gov/vuln/detail/${vuln.cve_id}`} target="_blank" rel="noopener noreferrer"
+               className="vuln-cve" onClick={(e) => e.stopPropagation()}>
+              {vuln.cve_id}
+            </a>
+            <button className="copy-btn" onClick={(e) => { e.stopPropagation(); copyText(vuln.cve_id); }} title="Copy CVE ID">
+              <Copy size={11} />
+            </button>
+          </div>
+        ) : (
+          <span className="vuln-cve" style={{ opacity: 0.5 }}>No CVE</span>
+        )}
         <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
           {vuln.scanner_type || 'Unknown'}
         </span>
@@ -204,6 +232,18 @@ function VulnFilterBar({ allVulns, filterSeverity, setFilterSeverity, sortBy, se
         <button className={`vuln-sort-btn ${sortBy === 'severity' ? 'active' : ''}`} onClick={() => setSortBy('severity')}>Severity</button>
         <button className={`vuln-sort-btn ${sortBy === 'name' ? 'active' : ''}`} onClick={() => setSortBy('name')}>Package A–Z</button>
       </div>
+    </div>
+  );
+}
+
+// ─── Toast ───────────────────────────────────────────────────────────────────
+
+function Toast({ message }) {
+  if (!message) return null;
+  return (
+    <div className="toast">
+      <CheckCircle2 size={14} />
+      {message}
     </div>
   );
 }
@@ -383,6 +423,7 @@ function HistoryView({ apiFetch }) {
   const [repos, setRepos] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     apiFetch('/history')
@@ -395,6 +436,8 @@ function HistoryView({ apiFetch }) {
     await apiFetch(`/history?repo_url=${encodeURIComponent(repoUrl)}`, { method: 'DELETE' });
     setRepos(prev => prev.filter(r => r.repo_url !== repoUrl));
   };
+
+  const filtered = repos ? repos.filter(r => r.repo_url.toLowerCase().includes(search.toLowerCase())) : [];
 
   return (
     <div className="app-container">
@@ -413,12 +456,28 @@ function HistoryView({ apiFetch }) {
         <p style={{ marginTop: '0.5rem', fontSize: '0.95rem' }}>Run a scan first to build up your history.</p>
       </div>}
       {repos && repos.length > 0 && (
-        <div className="history-list">
-          {repos.map((item, i) => (
-            <RepoHistoryBlock key={item.repo_url} repoUrl={item.repo_url} reviews={item.reviews}
-              onDelete={handleDelete} revealDelay={i * 0.07} />
-          ))}
-        </div>
+        <>
+          <div className="history-search-bar">
+            <Search size={15} className="history-search-icon" />
+            <input
+              className="history-search-input"
+              placeholder={`Search ${repos.length} repositor${repos.length !== 1 ? 'ies' : 'y'}…`}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            {search && <button className="history-search-clear" onClick={() => setSearch('')}>✕</button>}
+          </div>
+          {filtered.length === 0
+            ? <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '4rem' }}>
+                <p>No repos match "{search}"</p>
+              </div>
+            : <div className="history-list">
+                {filtered.map((item, i) => (
+                  <RepoHistoryBlock key={item.repo_url} repoUrl={item.repo_url} reviews={item.reviews}
+                    onDelete={handleDelete} revealDelay={i * 0.07} />
+                ))}
+              </div>}
+        </>
       )}
     </div>
   );
@@ -581,6 +640,7 @@ function PackageHistoryView({ apiFetch }) {
   const [repos, setRepos] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     apiFetch('/vuln-history')
@@ -593,6 +653,8 @@ function PackageHistoryView({ apiFetch }) {
     await apiFetch(`/vuln-history?repo_url=${encodeURIComponent(repoUrl)}`, { method: 'DELETE' });
     setRepos(prev => prev.filter(r => r.repo_url !== repoUrl));
   };
+
+  const filtered = repos ? repos.filter(r => r.repo_url.toLowerCase().includes(search.toLowerCase())) : [];
 
   return (
     <div className="app-container">
@@ -611,12 +673,28 @@ function PackageHistoryView({ apiFetch }) {
         <p style={{ marginTop: '0.5rem', fontSize: '0.95rem' }}>Run a scan to start tracking your vulnerability trends.</p>
       </div>}
       {repos && repos.length > 0 && (
-        <div className="history-list">
-          {repos.map((item, i) => (
-            <RepoVulnBlock key={item.repo_url} repoUrl={item.repo_url} scans={item.scans}
-              onDelete={handleDelete} revealDelay={i * 0.07} />
-          ))}
-        </div>
+        <>
+          <div className="history-search-bar">
+            <Search size={15} className="history-search-icon" />
+            <input
+              className="history-search-input"
+              placeholder={`Search ${repos.length} repositor${repos.length !== 1 ? 'ies' : 'y'}…`}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            {search && <button className="history-search-clear" onClick={() => setSearch('')}>✕</button>}
+          </div>
+          {filtered.length === 0
+            ? <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '4rem' }}>
+                <p>No repos match "{search}"</p>
+              </div>
+            : <div className="history-list">
+                {filtered.map((item, i) => (
+                  <RepoVulnBlock key={item.repo_url} repoUrl={item.repo_url} scans={item.scans}
+                    onDelete={handleDelete} revealDelay={i * 0.07} />
+                ))}
+              </div>}
+        </>
       )}
     </div>
   );
@@ -658,6 +736,14 @@ function ScannerApp({ apiFetch }) {
       setScanStatus({ detect: 'done', scanners: 'done', ai: 'done' });
       setScanComplete(true);
       setTimeout(() => setScanComplete(false), 1800);
+      // Celebrate a clean result
+      const vulnCount = Object.keys(data.results || {})
+        .filter(k => k !== 'ai_review')
+        .reduce((sum, k) => sum + (data.results[k]?.vulnerabilities?.length || 0), 0);
+      if (vulnCount === 0) {
+        confetti({ particleCount: 130, spread: 80, origin: { y: 0.55 },
+          colors: ['#58a6ff', '#d2a8ff', '#3fb950', '#ffa657', '#ffffff'] });
+      }
     } catch (err) {
       setError(err.message);
       setScanStatus({ detect: 'error', scanners: 'error', ai: 'error' });
@@ -853,6 +939,8 @@ function ScannerApp({ apiFetch }) {
 function App() {
   const [credentials, setCredentials] = useState(() => sessionStorage.getItem('auth') || null);
   const [view, setView] = useState(() => new URLSearchParams(window.location.search).get('view') || 'scanner');
+  const [toastMsg, setToastMsg] = useState(null);
+  const toastTimer = useRef(null);
 
   const handleLogin  = (creds) => { sessionStorage.setItem('auth', creds); setCredentials(creds); };
   const handleLogout = ()      => { sessionStorage.removeItem('auth');       setCredentials(null); setView('scanner'); };
@@ -867,6 +955,17 @@ function App() {
     const onPop = () => setView(new URLSearchParams(window.location.search).get('view') || 'scanner');
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  // Toast notification listener
+  useEffect(() => {
+    const handler = (e) => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      setToastMsg(e.detail.message);
+      toastTimer.current = setTimeout(() => setToastMsg(null), 2200);
+    };
+    window.addEventListener('app:toast', handler);
+    return () => window.removeEventListener('app:toast', handler);
   }, []);
 
   // Cursor spotlight + 3D tilt for cards (event delegation — no per-card hooks needed)
@@ -913,6 +1012,7 @@ function App() {
   return (
     <>
       <AmbientBackground />
+      <Toast message={toastMsg} />
       {!credentials
         ? <LoginPage onLogin={handleLogin} />
         : <>
