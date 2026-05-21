@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   ShieldCheck,
   Search,
@@ -14,7 +14,8 @@ import {
   Key,
   History,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  ExternalLink
 } from 'lucide-react';
 
 import './index.css';
@@ -57,19 +58,120 @@ function PreviousReviewItem({ review, index, total }) {
   );
 }
 
-function App() {
+// ─── History Tab View ────────────────────────────────────────────────────────
+
+function RepoHistoryBlock({ repoUrl, reviews }) {
+  const [collapsed, setCollapsed] = useState(false);
+  return (
+    <div className="repo-history-block">
+      <button className="repo-history-header" onClick={() => setCollapsed(c => !c)}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          {collapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
+          <span className="repo-history-url">{repoUrl}</span>
+        </span>
+        <span className="repo-history-count">{reviews.length} scan{reviews.length !== 1 ? 's' : ''}</span>
+      </button>
+      {!collapsed && (
+        <div style={{ padding: '0 1.5rem 1.5rem' }}>
+          {reviews.map((review, i) => (
+            <PreviousReviewItem
+              key={i}
+              review={review}
+              index={i}
+              total={reviews.length}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HistoryView() {
+  const [repos, setRepos] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    fetch(`${API_URL}/history`)
+      .then(r => {
+        if (!r.ok) throw new Error('Failed to load history');
+        return r.json();
+      })
+      .then(data => { setRepos(data.repos); setLoading(false); })
+      .catch(e => { setErr(e.message); setLoading(false); });
+  }, []);
+
+  return (
+    <div className="app-container">
+      <header>
+        <h1 className="logo">
+          <History size={40} color="#d2a8ff" />
+          AI Review History
+        </h1>
+        <p className="subtitle">All stored AI security reviews across every scanned repository</p>
+      </header>
+
+      {loading && (
+        <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '4rem' }}>
+          <Loader2 size={36} className="loader" style={{ margin: '0 auto 1rem' }} />
+          <p>Loading history…</p>
+        </div>
+      )}
+
+      {err && (
+        <div className="dashboard">
+          <div className="status-card" style={{ borderColor: 'rgba(255,123,114,0.3)' }}>
+            <div className="status-icon-wrapper" style={{ color: '#ff7b72', background: 'rgba(255,123,114,0.1)' }}>
+              <AlertTriangle size={24} />
+            </div>
+            <div className="status-info">
+              <h3>Error</h3>
+              <p style={{ color: '#ff7b72' }}>{err}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {repos && repos.length === 0 && (
+        <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '6rem' }}>
+          <Bot size={48} style={{ opacity: 0.3, marginBottom: '1rem' }} />
+          <p style={{ fontSize: '1.2rem' }}>No AI reviews saved yet.</p>
+          <p style={{ marginTop: '0.5rem', fontSize: '0.95rem' }}>Run a scan first to build up your history.</p>
+        </div>
+      )}
+
+      {repos && repos.length > 0 && (
+        <div className="history-list">
+          {repos.map((item, i) => (
+            <RepoHistoryBlock key={i} repoUrl={item.repo_url} reviews={item.reviews} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Scanner App ────────────────────────────────────────────────────────
+
+function ScannerApp() {
   const [repoUrl, setRepoUrl] = useState('');
   const [githubToken, setGithubToken] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
-  
-  // Track status of various scan stages
+
   const [scanStatus, setScanStatus] = useState({
     detect: 'idle',
-    scanners: 'idle', // overall scanners state
+    scanners: 'idle',
     ai: 'idle'
   });
+
+  const openHistoryTab = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('view', 'history');
+    window.open(url.toString(), '_blank');
+  };
 
   const handleScan = async (e) => {
     e.preventDefault();
@@ -78,7 +180,7 @@ function App() {
     setIsScanning(true);
     setResults(null);
     setError(null);
-    
+
     setScanStatus({
       detect: 'scanning',
       scanners: 'idle',
@@ -89,28 +191,28 @@ function App() {
       const response = await fetch(`${API_URL}/scan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           repo_url: repoUrl,
-          github_token: githubToken 
+          github_token: githubToken
         })
       });
-      
+
       if (!response.ok) {
         const errData = await response.json();
         throw new Error(errData.detail || 'Scan failed');
       }
 
       setScanStatus({ detect: 'done', scanners: 'scanning', ai: 'scanning' });
-      
+
       const data = await response.json();
       setResults(data);
-      
+
       setScanStatus({
         detect: 'done',
         scanners: 'done',
         ai: 'done'
       });
-      
+
     } catch (err) {
       setError(err.message);
       setScanStatus({ detect: 'error', scanners: 'error', ai: 'error' });
@@ -129,27 +231,21 @@ function App() {
     }
   };
 
-  // Dynamically calculate metrics from ALL scanners in the results
   const getAllVulnerabilities = () => {
     if (!results || !results.results) return [];
     const vulns = [];
-    
-    // Iterate through all keys in results (node, python, ruby, etc.)
     Object.keys(results.results).forEach(key => {
-        // Skip ai_review as it's handled separately
-        if (key === 'ai_review') return;
-        
-        const moduleResult = results.results[key];
-        if (moduleResult && moduleResult.vulnerabilities) {
-            vulns.push(...moduleResult.vulnerabilities);
-        }
+      if (key === 'ai_review') return;
+      const moduleResult = results.results[key];
+      if (moduleResult && moduleResult.vulnerabilities) {
+        vulns.push(...moduleResult.vulnerabilities);
+      }
     });
-    
     return vulns;
   };
 
   const allVulns = getAllVulnerabilities();
-    
+
   const metrics = {
     total: allVulns.length,
     critical: allVulns.filter(v => v.severity?.toLowerCase() === 'critical').length,
@@ -159,19 +255,25 @@ function App() {
 
   return (
     <div className="app-container">
-      <header>
+      <header style={{ position: 'relative' }}>
         <h1 className="logo">
           <ShieldCheck size={40} color="#58a6ff" />
           SecureScan
         </h1>
         <p className="subtitle">Universal Security Scanner for GitHub Repositories</p>
+
+        <button className="history-tab-btn" onClick={openHistoryTab}>
+          <History size={18} />
+          AI Review History
+          <ExternalLink size={14} style={{ opacity: 0.6 }} />
+        </button>
       </header>
 
       <form className="search-container" onSubmit={handleScan}>
         <div className="input-wrapper">
           <Code className="input-icon" size={20} />
-          <input 
-            type="url" 
+          <input
+            type="url"
             className="repo-input"
             placeholder="GitHub Repository URL"
             value={repoUrl}
@@ -182,8 +284,8 @@ function App() {
         </div>
         <div className="input-wrapper" style={{ maxWidth: '200px' }}>
           <Key className="input-icon" size={20} />
-          <input 
-            type="password" 
+          <input
+            type="password"
             className="repo-input"
             placeholder="Token (Optional)"
             value={githubToken}
@@ -226,10 +328,9 @@ function App() {
                 <p>{scanStatus.detect === 'done' ? `Detected: ${results?.project_types?.join(', ') || 'None'}` : 'Analyzing...'}</p>
               </div>
             </div>
-            
-            {/* Dynamically render cards for each detected language */}
+
             {results && results.project_types && results.project_types.map(type => {
-              if (type === 'docker') return null; // Skip generic types if preferred
+              if (type === 'docker') return null;
               const scannerResult = results.results?.[type];
               return (
                 <div key={type} className="status-card">
@@ -244,7 +345,6 @@ function App() {
               );
             })}
 
-            {/* If scanning, show a generic scanner placeholder */}
             {isScanning && scanStatus.detect === 'done' && (
                <div className="status-card">
                   <div className={`status-icon-wrapper status-scanning`}>
@@ -256,7 +356,7 @@ function App() {
                   </div>
                 </div>
             )}
-            
+
             <div className="status-card">
               <div className={`status-icon-wrapper status-${scanStatus.ai}`}>
                 {getStatusIcon(scanStatus.ai)}
@@ -265,8 +365,8 @@ function App() {
                 <h3>AI Code Review</h3>
                 <p>
                   {scanStatus.ai === 'done' ? (
-                    results?.results?.ai_review?.status === 'error' 
-                      ? `Failed (${results?.results?.ai_review?.error || 'No API Key'})` 
+                    results?.results?.ai_review?.status === 'error'
+                      ? `Failed (${results?.results?.ai_review?.error || 'No API Key'})`
                       : 'Completed'
                   ) : (
                     scanStatus.ai === 'scanning' ? 'Analyzing...' : 'Pending'
@@ -322,7 +422,7 @@ function App() {
                               {vuln.cve_id}
                             </a>
                           ) : <span className="vuln-cve" style={{opacity: 0.5}}>No CVE</span>}
-                          
+
                           <span style={{fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px'}}>
                              Source: {vuln.scanner_type || 'Unknown'}
                           </span>
@@ -383,6 +483,15 @@ function App() {
       )}
     </div>
   );
+}
+
+// ─── Root ────────────────────────────────────────────────────────────────────
+
+function App() {
+  const params = new URLSearchParams(window.location.search);
+  const isHistoryView = params.get('view') === 'history';
+
+  return isHistoryView ? <HistoryView /> : <ScannerApp />;
 }
 
 export default App;

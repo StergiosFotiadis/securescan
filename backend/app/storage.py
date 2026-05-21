@@ -45,3 +45,8 @@ def append_review(repo_url: str, ai_output: str) -> None:
         "ai_output": ai_output,
     })
     _save(data)
+
+
+def get_all_history() -> Dict[str, Any]:
+    """Return a dict mapping each repo URL to its list of reviews."""
+    return _load()

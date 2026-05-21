@@ -66,6 +66,18 @@ def cleanup(repo_path: str) -> None:
         shutil.rmtree(repo_path)
 
 
+@router.get("/history")
+async def get_all_review_history():
+    """Return all stored AI review histories for every scanned repo."""
+    raw = storage.get_all_history()
+    return {
+        "repos": [
+            {"repo_url": url, "reviews": reviews}
+            for url, reviews in raw.items()
+        ]
+    }
+
+
 @router.post("/scan", response_model=ScanResponse)
 async def run_scan(request: ScanRequest):
     # Load previous AI reviews for this repo before cloning

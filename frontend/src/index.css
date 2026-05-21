@@ -514,10 +514,98 @@ header {
   100% { transform: rotate(360deg); }
 }
 
+/* History Tab Button */
+.history-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+  padding: 0.65rem 1.4rem;
+  background: rgba(210, 168, 255, 0.08);
+  border: 1px solid rgba(210, 168, 255, 0.25);
+  border-radius: 14px;
+  color: #d2a8ff;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  backdrop-filter: var(--glass-blur);
+}
+
+.history-tab-btn:hover {
+  background: rgba(210, 168, 255, 0.16);
+  border-color: rgba(210, 168, 255, 0.5);
+  box-shadow: 0 0 20px rgba(210, 168, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+/* History View */
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  animation: fadeInUp 0.8s ease-out;
+}
+
+.repo-history-block {
+  background: var(--bg-glass);
+  border: 1px solid rgba(210, 168, 255, 0.2);
+  border-radius: 24px;
+  overflow: hidden;
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--card-shadow);
+  transition: border-color 0.3s ease;
+}
+
+.repo-history-block:hover {
+  border-color: rgba(210, 168, 255, 0.4);
+}
+
+.repo-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 1.25rem 1.5rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-main);
+  font-family: 'Outfit', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  gap: 1rem;
+  transition: background 0.2s ease;
+}
+
+.repo-history-header:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.repo-history-url {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.95rem;
+  color: #d2a8ff;
+  word-break: break-all;
+  text-align: left;
+}
+
+.repo-history-count {
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.3rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .logo { font-size: 2.5rem; }
   .search-container { flex-direction: column; }
   .scan-btn { padding: 1.25rem; width: 100%; justify-content: center; }
   .metric-card { min-width: 100%; }
+  .repo-history-url { font-size: 0.8rem; }
 }
