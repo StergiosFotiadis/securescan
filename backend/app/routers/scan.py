@@ -78,6 +78,15 @@ async def get_all_review_history():
     }
 
 
+@router.delete("/history")
+async def delete_repo_history(repo_url: str):
+    """Delete all stored AI reviews for a specific repo."""
+    deleted = storage.delete_repo(repo_url)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="No history found for this repo")
+    return {"deleted": True}
+
+
 @router.post("/scan", response_model=ScanResponse)
 async def run_scan(request: ScanRequest):
     # Load previous AI reviews for this repo before cloning

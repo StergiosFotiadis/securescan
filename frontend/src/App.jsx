@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   ShieldCheck,
   Search,
@@ -18,12 +20,17 @@ import {
   ExternalLink,
   User,
   Lock,
-  LogOut
+  LogOut,
+  Trash2,
+  ArrowUpDown,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 import './index.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+const SEVERITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3 };
 
 function formatTimestamp(iso) {
   try {
@@ -34,6 +41,18 @@ function formatTimestamp(iso) {
   } catch {
     return iso;
   }
+}
+
+// ─── Markdown renderer ────────────────────────────────────────────────────────
+
+function AIMarkdown({ children }) {
+  return (
+    <div className="ai-content">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+        {children}
+      </ReactMarkdown>
+    </div>
+  );
 }
 
 // ─── Login Page ───────────────────────────────────────────────────────────────
@@ -143,9 +162,7 @@ function LoginPage({ onLogin }) {
           </button>
         </form>
 
-        <p className="login-footer">
-          Protected by SecureScan Basic Auth
-        </p>
+        <p className="login-footer">Protected by SecureScan Basic Auth</p>
       </div>
     </div>
   );
@@ -170,25 +187,59 @@ function PreviousReviewItem({ review, index, total }) {
         Scan {index + 1} of {total} — {formatTimestamp(review.timestamp)}
       </button>
       {open && (
-        <div className="ai-content" style={{ padding: '0 1rem 1rem', borderTop: '1px solid rgba(210,168,255,0.15)' }}>
-          {review.ai_output}
+        <div style={{ padding: '0 1rem 1rem', borderTop: '1px solid rgba(210,168,255,0.15)' }}>
+          <AIMarkdown>{review.ai_output}</AIMarkdown>
         </div>
       )}
     </div>
   );
 }
 
-function RepoHistoryBlock({ repoUrl, reviews }) {
+function RepoHistoryBlock({ repoUrl, reviews, onDelete }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await onDelete(repoUrl);
+    } finally {
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
+  };
+
   return (
     <div className="repo-history-block">
-      <button className="repo-history-header" onClick={() => setCollapsed(c => !c)}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          {collapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
-          <span className="repo-history-url">{repoUrl}</span>
-        </span>
-        <span className="repo-history-count">{reviews.length} scan{reviews.length !== 1 ? 's' : ''}</span>
-      </button>
+      <div className="repo-history-header-row">
+        <button className="repo-history-header" onClick={() => setCollapsed(c => !c)}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            {collapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
+            <span className="repo-history-url">{repoUrl}</span>
+          </span>
+          <span className="repo-history-count">{reviews.length} scan{reviews.length !== 1 ? 's' : ''}</span>
+        </button>
+
+        <div className="repo-delete-area">
+          {confirmDelete ? (
+            <>
+              <span className="repo-delete-confirm-text">Delete all scans?</span>
+              <button className="repo-delete-btn repo-delete-confirm" onClick={handleDelete} disabled={deleting}>
+                {deleting ? <Loader2 size={13} className="loader" /> : 'Yes, delete'}
+              </button>
+              <button className="repo-delete-btn repo-delete-cancel" onClick={() => setConfirmDelete(false)} disabled={deleting}>
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button className="repo-delete-btn repo-delete-idle" onClick={() => setConfirmDelete(true)} title="Delete history">
+              <Trash2 size={15} />
+            </button>
+          )}
+        </div>
+      </div>
+
       {!collapsed && (
         <div style={{ padding: '0 1.5rem 1.5rem' }}>
           {reviews.map((review, i) => (
@@ -214,6 +265,11 @@ function HistoryView({ apiFetch, onLogout }) {
       .then(data => { setRepos(data.repos); setLoading(false); })
       .catch(e => { setErr(e.message); setLoading(false); });
   }, []);
+
+  const handleDelete = async (repoUrl) => {
+    await apiFetch(`/history?repo_url=${encodeURIComponent(repoUrl)}`, { method: 'DELETE' });
+    setRepos(prev => prev.filter(r => r.repo_url !== repoUrl));
+  };
 
   return (
     <div className="app-container">
@@ -260,10 +316,75 @@ function HistoryView({ apiFetch, onLogout }) {
       {repos && repos.length > 0 && (
         <div className="history-list">
           {repos.map((item, i) => (
-            <RepoHistoryBlock key={i} repoUrl={item.repo_url} reviews={item.reviews} />
+            <RepoHistoryBlock
+              key={item.repo_url}
+              repoUrl={item.repo_url}
+              reviews={item.reviews}
+              onDelete={handleDelete}
+            />
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Vuln Filter Bar ──────────────────────────────────────────────────────────
+
+function VulnFilterBar({ allVulns, filterSeverity, setFilterSeverity, sortBy, setSortBy }) {
+  const counts = {
+    all: allVulns.length,
+    critical: allVulns.filter(v => v.severity?.toLowerCase() === 'critical').length,
+    high: allVulns.filter(v => v.severity?.toLowerCase() === 'high').length,
+    medium: allVulns.filter(v => v.severity?.toLowerCase() === 'medium').length,
+    low: allVulns.filter(v => v.severity?.toLowerCase() === 'low').length,
+  };
+
+  const pills = [
+    { key: 'all', label: 'All' },
+    { key: 'critical', label: 'Critical' },
+    { key: 'high', label: 'High' },
+    { key: 'medium', label: 'Medium' },
+    { key: 'low', label: 'Low' },
+  ];
+
+  return (
+    <div className="vuln-filter-bar">
+      <div className="vuln-filter-left">
+        <span className="vuln-filter-label">
+          <SlidersHorizontal size={14} /> Filter
+        </span>
+        {pills.map(({ key, label }) => (
+          counts[key] > 0 || key === 'all' ? (
+            <button
+              key={key}
+              className={`vuln-pill vuln-pill-${key} ${filterSeverity === key ? 'active' : ''}`}
+              onClick={() => setFilterSeverity(key)}
+            >
+              {label}
+              <span className="vuln-pill-count">{counts[key]}</span>
+            </button>
+          ) : null
+        ))}
+      </div>
+
+      <div className="vuln-filter-right">
+        <span className="vuln-filter-label">
+          <ArrowUpDown size={14} /> Sort
+        </span>
+        <button
+          className={`vuln-sort-btn ${sortBy === 'severity' ? 'active' : ''}`}
+          onClick={() => setSortBy('severity')}
+        >
+          Severity
+        </button>
+        <button
+          className={`vuln-sort-btn ${sortBy === 'name' ? 'active' : ''}`}
+          onClick={() => setSortBy('name')}
+        >
+          Package A–Z
+        </button>
+      </div>
     </div>
   );
 }
@@ -276,6 +397,8 @@ function ScannerApp({ apiFetch, onLogout }) {
   const [isScanning, setIsScanning] = useState(false);
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
+  const [filterSeverity, setFilterSeverity] = useState('all');
+  const [sortBy, setSortBy] = useState('severity');
 
   const [scanStatus, setScanStatus] = useState({
     detect: 'idle',
@@ -296,6 +419,8 @@ function ScannerApp({ apiFetch, onLogout }) {
     setIsScanning(true);
     setResults(null);
     setError(null);
+    setFilterSeverity('all');
+    setSortBy('severity');
     setScanStatus({ detect: 'scanning', scanners: 'idle', ai: 'idle' });
 
     try {
@@ -349,6 +474,17 @@ function ScannerApp({ apiFetch, onLogout }) {
 
   const allVulns = getAllVulnerabilities();
 
+  const filteredAndSorted = allVulns
+    .filter(v => filterSeverity === 'all' || v.severity?.toLowerCase() === filterSeverity)
+    .sort((a, b) => {
+      if (sortBy === 'severity') {
+        const ao = SEVERITY_ORDER[a.severity?.toLowerCase()] ?? 4;
+        const bo = SEVERITY_ORDER[b.severity?.toLowerCase()] ?? 4;
+        return ao - bo;
+      }
+      return (a.package_name || '').localeCompare(b.package_name || '');
+    });
+
   const metrics = {
     total: allVulns.length,
     critical: allVulns.filter(v => v.severity?.toLowerCase() === 'critical').length,
@@ -365,7 +501,7 @@ function ScannerApp({ apiFetch, onLogout }) {
         </h1>
         <p className="subtitle">Universal Security Scanner for GitHub Repositories</p>
 
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', marginTop: '1.5rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1.5rem' }}>
           <button className="history-tab-btn" onClick={openHistoryTab}>
             <History size={18} />
             AI Review History
@@ -512,32 +648,47 @@ function ScannerApp({ apiFetch, onLogout }) {
                     <FileCode2 size={24} color="#58a6ff" />
                     Dependency Vulnerabilities
                   </h2>
-                  <div className="vuln-grid">
-                    {allVulns.map((vuln, i) => (
-                      <div key={i} className={`vuln-card vuln-${vuln.severity?.toLowerCase() || 'high'}`}>
-                        <div className="vuln-header">
-                          <div>
-                            <div className="vuln-pkg">{vuln.package_name}</div>
-                            <div className="vuln-version">v{vuln.version}</div>
+
+                  <VulnFilterBar
+                    allVulns={allVulns}
+                    filterSeverity={filterSeverity}
+                    setFilterSeverity={setFilterSeverity}
+                    sortBy={sortBy}
+                    setSortBy={setSortBy}
+                  />
+
+                  {filteredAndSorted.length === 0 ? (
+                    <div className="vuln-empty">
+                      No {filterSeverity} vulnerabilities found.
+                    </div>
+                  ) : (
+                    <div className="vuln-grid">
+                      {filteredAndSorted.map((vuln, i) => (
+                        <div key={i} className={`vuln-card vuln-${vuln.severity?.toLowerCase() || 'high'}`}>
+                          <div className="vuln-header">
+                            <div>
+                              <div className="vuln-pkg">{vuln.package_name}</div>
+                              <div className="vuln-version">v{vuln.version}</div>
+                            </div>
+                            <span className={`severity-badge badge-${vuln.severity?.toLowerCase() || 'high'}`}>
+                              {vuln.severity}
+                            </span>
                           </div>
-                          <span className={`severity-badge badge-${vuln.severity?.toLowerCase() || 'high'}`}>
-                            {vuln.severity}
-                          </span>
+                          <p className="vuln-desc">{vuln.description}</p>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
+                            {vuln.cve_id ? (
+                              <a href={`https://nvd.nist.gov/vuln/detail/${vuln.cve_id}`} target="_blank" rel="noopener noreferrer" className="vuln-cve">
+                                {vuln.cve_id}
+                              </a>
+                            ) : <span className="vuln-cve" style={{ opacity: 0.5 }}>No CVE</span>}
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                              Source: {vuln.scanner_type || 'Unknown'}
+                            </span>
+                          </div>
                         </div>
-                        <p className="vuln-desc">{vuln.description}</p>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
-                          {vuln.cve_id ? (
-                            <a href={`https://nvd.nist.gov/vuln/detail/${vuln.cve_id}`} target="_blank" rel="noopener noreferrer" className="vuln-cve">
-                              {vuln.cve_id}
-                            </a>
-                          ) : <span className="vuln-cve" style={{ opacity: 0.5 }}>No CVE</span>}
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                            Source: {vuln.scanner_type || 'Unknown'}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -560,9 +711,7 @@ function ScannerApp({ apiFetch, onLogout }) {
                     Claude AI Review — Latest
                   </h2>
                   <div className="ai-review-card">
-                    <div className="ai-content">
-                      {results.results.ai_review.ai_output}
-                    </div>
+                    <AIMarkdown>{results.results.ai_review.ai_output}</AIMarkdown>
                   </div>
                 </div>
               )}

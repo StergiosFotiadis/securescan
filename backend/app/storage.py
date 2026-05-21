@@ -50,3 +50,14 @@ def append_review(repo_url: str, ai_output: str) -> None:
 def get_all_history() -> Dict[str, Any]:
     """Return a dict mapping each repo URL to its list of reviews."""
     return _load()
+
+
+def delete_repo(repo_url: str) -> bool:
+    """Delete all stored reviews for a repo. Returns False if not found."""
+    data = _load()
+    key = _normalize(repo_url)
+    if key not in data:
+        return False
+    del data[key]
+    _save(data)
+    return True

@@ -453,6 +453,126 @@ header {
   transform: translateY(-1px);
 }
 
+/* ── Markdown Content ─────────────────────────────────────────────────────── */
+.ai-content {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.05rem;
+  line-height: 1.8;
+  color: #e6edf3;
+}
+
+.ai-content h1,
+.ai-content h2,
+.ai-content h3,
+.ai-content h4 {
+  color: #f0f6fc;
+  font-weight: 700;
+  margin: 1.6rem 0 0.6rem;
+  line-height: 1.3;
+}
+
+.ai-content h1 { font-size: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.5rem; }
+.ai-content h2 { font-size: 1.25rem; color: var(--primary); }
+.ai-content h3 { font-size: 1.05rem; color: var(--accent); }
+.ai-content h4 { font-size: 0.95rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+
+.ai-content p {
+  margin: 0.65rem 0;
+}
+
+.ai-content ul,
+.ai-content ol {
+  padding-left: 1.5rem;
+  margin: 0.6rem 0;
+}
+
+.ai-content li {
+  margin: 0.3rem 0;
+  color: #c9d1d9;
+}
+
+.ai-content li::marker {
+  color: var(--primary);
+}
+
+.ai-content strong {
+  color: #f0f6fc;
+  font-weight: 700;
+}
+
+.ai-content em {
+  color: var(--accent);
+  font-style: italic;
+}
+
+.ai-content code {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.88em;
+  background: rgba(88, 166, 255, 0.08);
+  border: 1px solid rgba(88, 166, 255, 0.15);
+  border-radius: 6px;
+  padding: 0.15em 0.45em;
+  color: #a5d6ff;
+}
+
+.ai-content pre {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+.ai-content pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #e6edf3;
+  font-size: 0.9rem;
+}
+
+.ai-content blockquote {
+  border-left: 3px solid var(--accent);
+  margin: 1rem 0;
+  padding: 0.5rem 0 0.5rem 1.25rem;
+  background: rgba(210, 168, 255, 0.05);
+  border-radius: 0 8px 8px 0;
+  color: var(--text-muted);
+}
+
+.ai-content hr {
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  margin: 1.5rem 0;
+}
+
+.ai-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.95rem;
+}
+
+.ai-content th {
+  background: rgba(88, 166, 255, 0.08);
+  color: var(--primary);
+  font-weight: 600;
+  padding: 0.6rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid rgba(88, 166, 255, 0.2);
+}
+
+.ai-content td {
+  padding: 0.55rem 1rem;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  color: #c9d1d9;
+}
+
+.ai-content tr:hover td {
+  background: rgba(255,255,255,0.02);
+}
+
 /* AI Review Section */
 .ai-review-card {
   background: var(--bg-glass);
@@ -476,13 +596,6 @@ header {
   pointer-events: none;
 }
 
-.ai-content {
-  font-family: 'Outfit', sans-serif;
-  font-size: 1.1rem;
-  line-height: 1.8;
-  white-space: pre-wrap;
-  color: #e6edf3;
-}
 
 /* Custom Keyframes */
 @keyframes fadeInUp {
@@ -599,6 +712,179 @@ header {
   padding: 0.3rem 0.75rem;
   border-radius: 10px;
   border: 1px solid var(--border-color);
+}
+
+/* ── Vulnerability Filter Bar ─────────────────────────────────────────────── */
+.vuln-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  padding: 0.9rem 1.25rem;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-glass);
+  border-radius: 18px;
+  backdrop-filter: var(--glass-blur);
+}
+
+.vuln-filter-left,
+.vuln-filter-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.vuln-filter-label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-right: 0.25rem;
+}
+
+.vuln-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 10px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  background: rgba(255,255,255,0.04);
+  color: var(--text-muted);
+}
+
+.vuln-pill:hover { background: rgba(255,255,255,0.08); color: var(--text-main); }
+
+.vuln-pill-count {
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: rgba(255,255,255,0.1);
+  padding: 0.1em 0.45em;
+  border-radius: 6px;
+}
+
+/* Active states per severity */
+.vuln-pill-all.active        { background: rgba(255,255,255,0.1); color: #fff; border-color: rgba(255,255,255,0.2); }
+.vuln-pill-critical.active   { background: rgba(255,123,114,0.12); color: var(--critical); border-color: rgba(255,123,114,0.3); }
+.vuln-pill-high.active       { background: rgba(255,166,87,0.12);  color: var(--high);     border-color: rgba(255,166,87,0.3); }
+.vuln-pill-medium.active     { background: rgba(210,168,255,0.12); color: var(--medium);   border-color: rgba(210,168,255,0.3); }
+.vuln-pill-low.active        { background: rgba(165,214,255,0.12); color: var(--low);      border-color: rgba(165,214,255,0.3); }
+
+.vuln-sort-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.85rem;
+  border-radius: 10px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: rgba(255,255,255,0.04);
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+}
+
+.vuln-sort-btn:hover { background: rgba(255,255,255,0.08); color: var(--text-main); }
+.vuln-sort-btn.active { background: rgba(88,166,255,0.1); color: var(--primary); border-color: rgba(88,166,255,0.25); }
+
+.vuln-empty {
+  text-align: center;
+  padding: 3rem;
+  color: var(--text-muted);
+  font-size: 1rem;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-glass);
+  border-radius: 20px;
+  backdrop-filter: var(--glass-blur);
+}
+
+/* ── Delete History ───────────────────────────────────────────────────────── */
+.repo-history-header-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.repo-history-header {
+  flex: 1;
+  min-width: 0;
+}
+
+.repo-delete-area {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.75rem 0 0.5rem;
+  flex-shrink: 0;
+}
+
+.repo-delete-confirm-text {
+  font-size: 0.78rem;
+  color: var(--critical);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.repo-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 9px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.repo-delete-idle {
+  background: none;
+  color: var(--text-muted);
+  border-color: transparent;
+  opacity: 0.4;
+}
+
+.repo-delete-idle:hover {
+  background: rgba(255,123,114,0.1);
+  color: var(--critical);
+  border-color: rgba(255,123,114,0.25);
+  opacity: 1;
+}
+
+.repo-delete-confirm {
+  background: rgba(255,123,114,0.12);
+  color: var(--critical);
+  border-color: rgba(255,123,114,0.3);
+}
+
+.repo-delete-confirm:hover {
+  background: rgba(255,123,114,0.22);
+}
+
+.repo-delete-cancel {
+  background: rgba(255,255,255,0.04);
+  color: var(--text-muted);
+  border-color: rgba(255,255,255,0.1);
+}
+
+.repo-delete-cancel:hover {
+  background: rgba(255,255,255,0.08);
+  color: var(--text-main);
 }
 
 /* Login Page */
