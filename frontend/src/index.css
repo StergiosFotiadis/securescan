@@ -117,19 +117,8 @@ header {
   gap: 1rem;
   max-width: 800px;
   margin: 0 auto 4rem;
-  position: sticky;
-  top: 80px;
-  z-index: 50;
   border-radius: 24px;
   animation: fadeInUp 1s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
-  transition: background 0.35s ease, box-shadow 0.35s ease, padding 0.35s ease;
-}
-
-.search-form-sticky {
-  background: rgba(5, 6, 8, 0.92);
-  backdrop-filter: blur(28px);
-  padding: 0.55rem;
-  box-shadow: 0 4px 30px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.07);
 }
 
 .input-wrapper {

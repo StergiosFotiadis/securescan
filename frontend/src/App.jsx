@@ -886,20 +886,7 @@ function ScannerApp({ apiFetch }) {
   const [scanStatus, setScanStatus] = useState({ detect: 'idle', scanners: 'idle', ai: 'idle' });
   const [scanComplete, setScanComplete] = useState(false);
   const [scanDuration, setScanDuration] = useState(null);
-  const [formSticky, setFormSticky] = useState(false);
-  const sentinelRef = useRef(null);
   const scanStartRef = useRef(null);
-
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => setFormSticky(!entry.isIntersecting),
-      { threshold: 0, rootMargin: '-80px 0px 0px 0px' }
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
 
   useEffect(() => {
     const handler = () => {
@@ -1009,8 +996,7 @@ function ScannerApp({ apiFetch }) {
         <p className="subtitle">Universal Security Scanner for GitHub Repositories</p>
       </header>
 
-      <div ref={sentinelRef} style={{ height: 1, marginBottom: '-1px' }} />
-      <form className={`search-container${formSticky ? ' search-form-sticky' : ''}`} onSubmit={handleScan}>
+      <form className="search-container" onSubmit={handleScan}>
         <div className="input-wrapper">
           <Code className="input-icon" size={20} />
           <input type="url" className="repo-input" placeholder="GitHub Repository URL"
