@@ -34,7 +34,7 @@ function computeDelta(prevScan, currScan) {
   const prevKeys = new Set((prevScan?.vulnerabilities || []).map(vulnKey));
   const currKeys = new Set((currScan?.vulnerabilities || []).map(vulnKey));
   return {
-    newVulns: currScan.vulnerabilities.filter(v => !prevKeys.has(vulnKey(v))),
+    newVulns:   currScan.vulnerabilities.filter(v => !prevKeys.has(vulnKey(v))),
     fixedVulns: (prevScan?.vulnerabilities || []).filter(v => !currKeys.has(vulnKey(v))),
   };
 }
@@ -48,7 +48,41 @@ function getSeverityCounts(vulns) {
   };
 }
 
+// ─── Hooks ───────────────────────────────────────────────────────────────────
+
+function useCountUp(target, duration = 1100) {
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    if (target === 0) { setVal(0); return; }
+    let start = null;
+    const step = (ts) => {
+      if (!start) start = ts;
+      const p = Math.min((ts - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - p, 4); // easeOutQuart
+      setVal(Math.round(eased * target));
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }, [target, duration]);
+  return val;
+}
+
 // ─── Shared UI ────────────────────────────────────────────────────────────────
+
+function AmbientBackground() {
+  return (
+    <>
+      <div className="ambient-orb ambient-orb-1" />
+      <div className="ambient-orb ambient-orb-2" />
+      <div className="ambient-orb ambient-orb-3" />
+    </>
+  );
+}
+
+function AnimatedNumber({ value }) {
+  const n = useCountUp(value);
+  return <>{n}</>;
+}
 
 function AIMarkdown({ children }) {
   return (
@@ -58,10 +92,13 @@ function AIMarkdown({ children }) {
   );
 }
 
-function VulnCard({ vuln, isNew = false }) {
+function VulnCard({ vuln, isNew = false, index = 0 }) {
   const sev = vuln.severity?.toLowerCase() || 'high';
   return (
-    <div className={`vuln-card vuln-${sev}${isNew ? ' vuln-card-new' : ''}`}>
+    <div
+      className={`vuln-card vuln-${sev}${isNew ? ' vuln-card-new' : ''} anim-slide-in`}
+      style={{ animationDelay: `${Math.min(index * 0.06, 0.54)}s` }}
+    >
       {isNew && <span className="vuln-new-badge">NEW</span>}
       <div className="vuln-header">
         <div>
@@ -89,9 +126,7 @@ function VulnCard({ vuln, isNew = false }) {
 
 function SeverityChips({ vulnerabilities }) {
   const c = getSeverityCounts(vulnerabilities);
-  if (vulnerabilities.length === 0) {
-    return <span className="sev-chip sev-clean">✓ Clean</span>;
-  }
+  if (vulnerabilities.length === 0) return <span className="sev-chip sev-clean">✓ Clean</span>;
   return (
     <div className="severity-chips">
       {c.critical > 0 && <span className="sev-chip sev-critical">{c.critical}C</span>}
@@ -106,8 +141,8 @@ function TrendBadge({ scans }) {
   if (scans.length < 2) return <span className="trend-badge trend-baseline">First scan</span>;
   const { newVulns, fixedVulns } = computeDelta(scans[scans.length - 2], scans[scans.length - 1]);
   const net = newVulns.length - fixedVulns.length;
-  if (net > 0)  return <span className="trend-badge trend-worse"><TrendingUp size={12} /> +{newVulns.length} new</span>;
-  if (net < 0)  return <span className="trend-badge trend-better"><TrendingDown size={12} /> {fixedVulns.length} fixed</span>;
+  if (net > 0)             return <span className="trend-badge trend-worse"><TrendingUp size={12} /> +{newVulns.length} new</span>;
+  if (net < 0)             return <span className="trend-badge trend-better"><TrendingDown size={12} /> {fixedVulns.length} fixed</span>;
   if (newVulns.length > 0) return <span className="trend-badge trend-mixed"><Minus size={12} /> {newVulns.length} changed</span>;
   return <span className="trend-badge trend-same"><Minus size={12} /> No change</span>;
 }
@@ -133,13 +168,9 @@ function VulnFilterBar({ allVulns, filterSeverity, setFilterSeverity, sortBy, se
         <span className="vuln-filter-label"><SlidersHorizontal size={14} /> Filter</span>
         {pills.map(({ key, label }) =>
           (counts[key] > 0 || key === 'all') ? (
-            <button
-              key={key}
-              className={`vuln-pill vuln-pill-${key} ${filterSeverity === key ? 'active' : ''}`}
-              onClick={() => setFilterSeverity(key)}
-            >
-              {label}
-              <span className="vuln-pill-count">{counts[key]}</span>
+            <button key={key} className={`vuln-pill vuln-pill-${key} ${filterSeverity === key ? 'active' : ''}`}
+              onClick={() => setFilterSeverity(key)}>
+              {label}<span className="vuln-pill-count">{counts[key]}</span>
             </button>
           ) : null
         )}
@@ -168,14 +199,9 @@ function LoginPage({ onLogin }) {
     setError(null);
     const credentials = btoa(`${username}:${password}`);
     try {
-      const res = await fetch(`${API_URL}/history`, {
-        headers: { 'Authorization': `Basic ${credentials}` },
-      });
-      if (res.status === 401) {
-        setError('Invalid username or password. Please try again.');
-      } else {
-        onLogin(credentials);
-      }
+      const res = await fetch(`${API_URL}/history`, { headers: { 'Authorization': `Basic ${credentials}` } });
+      if (res.status === 401) setError('Invalid username or password. Please try again.');
+      else onLogin(credentials);
     } catch {
       setError('Connection failed. Check your network and try again.');
     } finally {
@@ -207,9 +233,7 @@ function LoginPage({ onLogin }) {
               {showPassword ? '🙈' : '👁'}
             </button>
           </div>
-          {error && (
-            <div className="login-error"><AlertTriangle size={15} />{error}</div>
-          )}
+          {error && <div className="login-error"><AlertTriangle size={15} />{error}</div>}
           <button type="submit" className={`scan-btn login-btn ${loading ? 'scanning' : ''}`}
             disabled={loading || !username || !password}>
             {loading ? <><Loader2 size={20} className="loader" /> Signing in…</> : <><ShieldCheck size={20} /> Sign In</>}
@@ -228,10 +252,8 @@ function PreviousReviewItem({ review, index, total }) {
   return (
     <div className="ai-review-card" style={{ marginBottom: '0.75rem', borderColor: 'rgba(210,168,255,0.2)' }}>
       <button onClick={() => setOpen(o => !o)} style={{
-        display: 'flex', alignItems: 'center', gap: '0.5rem',
-        background: 'none', border: 'none', cursor: 'pointer',
-        color: '#d2a8ff', width: '100%', padding: '0.75rem 1rem',
-        fontSize: '0.9rem', fontWeight: 600,
+        display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'none', border: 'none',
+        cursor: 'pointer', color: '#d2a8ff', width: '100%', padding: '0.75rem 1rem', fontSize: '0.9rem', fontWeight: 600,
       }}>
         {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
         Scan {index + 1} of {total} — {formatTimestamp(review.timestamp)}
@@ -349,7 +371,7 @@ function FixedVulnRow({ vuln }) {
       <span className="fixed-badge">FIXED</span>
       <span className="vuln-pkg" style={{ fontSize: '0.95rem' }}>{vuln.package_name}</span>
       <span className="vuln-version">v{vuln.version}</span>
-      {vuln.cve_id && <span className={`vuln-cve`} style={{ fontSize: '0.78rem' }}>{vuln.cve_id}</span>}
+      {vuln.cve_id && <span className="vuln-cve" style={{ fontSize: '0.78rem' }}>{vuln.cve_id}</span>}
       <span className={`severity-badge badge-${sev}`} style={{ fontSize: '0.7rem', padding: '0.25rem 0.6rem' }}>{vuln.severity}</span>
     </div>
   );
@@ -365,24 +387,19 @@ function ScanEntry({ scan, delta, isLatest }) {
   const filteredVulns = scan.vulnerabilities
     .filter(v => filterSeverity === 'all' || v.severity?.toLowerCase() === filterSeverity)
     .sort((a, b) => {
-      if (sortBy === 'severity') {
-        return (SEVERITY_ORDER[a.severity?.toLowerCase()] ?? 4) - (SEVERITY_ORDER[b.severity?.toLowerCase()] ?? 4);
-      }
+      if (sortBy === 'severity') return (SEVERITY_ORDER[a.severity?.toLowerCase()] ?? 4) - (SEVERITY_ORDER[b.severity?.toLowerCase()] ?? 4);
       return (a.package_name || '').localeCompare(b.package_name || '');
     });
 
   return (
     <div className={`scan-entry${isLatest ? ' scan-entry-latest' : ''}`}>
       <div className="scan-entry-timeline-dot" />
-
       <button className="scan-entry-header" onClick={() => setOpen(o => !o)}>
         <div className="scan-entry-left">
           <span className="scan-entry-date">{formatTimestamp(scan.timestamp)}</span>
           {isLatest && <span className="scan-entry-latest-tag">Latest</span>}
           <div className="scan-entry-types">
-            {(scan.project_types || []).map(t => (
-              <span key={t} className="project-type-chip">{t}</span>
-            ))}
+            {(scan.project_types || []).map(t => <span key={t} className="project-type-chip">{t}</span>)}
           </div>
         </div>
         <div className="scan-entry-right">
@@ -392,7 +409,7 @@ function ScanEntry({ scan, delta, isLatest }) {
               <span className="delta-badge delta-same">No changes</span>
             ) : (
               <span className="delta-badge delta-mixed">
-                {delta.newVulns.length > 0 && <span className="delta-part delta-part-new">+{delta.newVulns.length} new</span>}
+                {delta.newVulns.length   > 0 && <span className="delta-part delta-part-new">+{delta.newVulns.length} new</span>}
                 {delta.fixedVulns.length > 0 && <span className="delta-part delta-part-fixed">−{delta.fixedVulns.length} fixed</span>}
               </span>
             )
@@ -414,7 +431,7 @@ function ScanEntry({ scan, delta, isLatest }) {
                     {delta.newVulns.length} new vulnerability{delta.newVulns.length !== 1 ? 'ies' : ''} introduced
                   </div>
                   <div className="vuln-grid">
-                    {delta.newVulns.map((v, i) => <VulnCard key={i} vuln={v} isNew={true} />)}
+                    {delta.newVulns.map((v, i) => <VulnCard key={i} vuln={v} isNew={true} index={i} />)}
                   </div>
                 </div>
               )}
@@ -431,30 +448,20 @@ function ScanEntry({ scan, delta, isLatest }) {
               )}
             </div>
           )}
-
           <div className="scan-all-vulns">
             <div className="scan-all-header">
-              All vulnerabilities
-              <span className="scan-all-count">{scan.vulnerabilities.length}</span>
+              All vulnerabilities<span className="scan-all-count">{scan.vulnerabilities.length}</span>
             </div>
             {scan.vulnerabilities.length > 0 ? (
               <>
-                <VulnFilterBar
-                  allVulns={scan.vulnerabilities}
-                  filterSeverity={filterSeverity}
-                  setFilterSeverity={setFilterSeverity}
-                  sortBy={sortBy}
-                  setSortBy={setSortBy}
-                />
-                {filteredVulns.length === 0 ? (
-                  <div className="vuln-empty">No {filterSeverity} vulnerabilities in this scan.</div>
-                ) : (
-                  <div className="vuln-grid">
-                    {filteredVulns.map((v, i) => (
-                      <VulnCard key={i} vuln={v} isNew={newVulnKeys.has(vulnKey(v))} />
-                    ))}
-                  </div>
-                )}
+                <VulnFilterBar allVulns={scan.vulnerabilities} filterSeverity={filterSeverity}
+                  setFilterSeverity={setFilterSeverity} sortBy={sortBy} setSortBy={setSortBy} />
+                {filteredVulns.length === 0
+                  ? <div className="vuln-empty">No {filterSeverity} vulnerabilities in this scan.</div>
+                  : <div className="vuln-grid">
+                      {filteredVulns.map((v, i) => <VulnCard key={i} vuln={v} isNew={newVulnKeys.has(vulnKey(v))} index={i} />)}
+                    </div>
+                }
               </>
             ) : (
               <div className="vuln-empty">No vulnerabilities found in this scan — clean!</div>
@@ -471,7 +478,6 @@ function RepoVulnBlock({ repoUrl, scans, onDelete }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // Display newest first; delta for each scan compares against the scan before it
   const sortedScans = [...scans].reverse();
 
   const handleDelete = async () => {
@@ -509,20 +515,14 @@ function RepoVulnBlock({ repoUrl, scans, onDelete }) {
           )}
         </div>
       </div>
-
       {!collapsed && (
         <div className="scan-timeline">
           {sortedScans.map((scan, i) => {
-            // prevScan is the chronologically older scan (i+1 in the newest-first array)
             const prevScan = sortedScans[i + 1] ?? null;
-            const delta = prevScan ? computeDelta(prevScan, scan) : null;
             return (
-              <ScanEntry
-                key={scan.timestamp}
-                scan={scan}
-                delta={delta}
-                isLatest={i === 0}
-              />
+              <ScanEntry key={scan.timestamp} scan={scan}
+                delta={prevScan ? computeDelta(prevScan, scan) : null}
+                isLatest={i === 0} />
             );
           })}
         </div>
@@ -555,31 +555,22 @@ function PackageHistoryView({ apiFetch, onLogout }) {
         <p className="subtitle">Vulnerability trend across all scanned repositories — track what's introduced and what's fixed</p>
         <button className="logout-btn" onClick={onLogout}><LogOut size={15} /> Sign Out</button>
       </header>
-
       {loading && <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '4rem' }}>
         <Loader2 size={36} className="loader" style={{ margin: '0 auto 1rem' }} /><p>Loading history…</p>
       </div>}
-
       {err && <div className="dashboard"><div className="status-card" style={{ borderColor: 'rgba(255,123,114,0.3)' }}>
         <div className="status-icon-wrapper" style={{ color: '#ff7b72', background: 'rgba(255,123,114,0.1)' }}><AlertTriangle size={24} /></div>
         <div className="status-info"><h3>Error</h3><p style={{ color: '#ff7b72' }}>{err}</p></div>
       </div></div>}
-
       {repos && repos.length === 0 && <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '6rem' }}>
         <Package size={48} style={{ opacity: 0.3, marginBottom: '1rem' }} />
         <p style={{ fontSize: '1.2rem' }}>No vulnerability history yet.</p>
         <p style={{ marginTop: '0.5rem', fontSize: '0.95rem' }}>Run a scan to start tracking your vulnerability trends.</p>
       </div>}
-
       {repos && repos.length > 0 && (
         <div className="history-list">
           {repos.map(item => (
-            <RepoVulnBlock
-              key={item.repo_url}
-              repoUrl={item.repo_url}
-              scans={item.scans}
-              onDelete={handleDelete}
-            />
+            <RepoVulnBlock key={item.repo_url} repoUrl={item.repo_url} scans={item.scans} onDelete={handleDelete} />
           ))}
         </div>
       )}
@@ -597,7 +588,6 @@ function ScannerApp({ apiFetch, onLogout }) {
   const [error, setError] = useState(null);
   const [filterSeverity, setFilterSeverity] = useState('all');
   const [sortBy, setSortBy] = useState('severity');
-
   const [scanStatus, setScanStatus] = useState({ detect: 'idle', scanners: 'idle', ai: 'idle' });
 
   const openTab = (view) => {
@@ -662,9 +652,7 @@ function ScannerApp({ apiFetch, onLogout }) {
   const filteredAndSorted = allVulns
     .filter(v => filterSeverity === 'all' || v.severity?.toLowerCase() === filterSeverity)
     .sort((a, b) => {
-      if (sortBy === 'severity') {
-        return (SEVERITY_ORDER[a.severity?.toLowerCase()] ?? 4) - (SEVERITY_ORDER[b.severity?.toLowerCase()] ?? 4);
-      }
+      if (sortBy === 'severity') return (SEVERITY_ORDER[a.severity?.toLowerCase()] ?? 4) - (SEVERITY_ORDER[b.severity?.toLowerCase()] ?? 4);
       return (a.package_name || '').localeCompare(b.package_name || '');
     });
 
@@ -726,36 +714,31 @@ function ScannerApp({ apiFetch, onLogout }) {
                 <p>{scanStatus.detect === 'done' ? `Detected: ${results?.project_types?.join(', ') || 'None'}` : 'Analyzing...'}</p>
               </div>
             </div>
-
             {results?.project_types?.map(type => {
               if (type === 'docker') return null;
-              const scannerResult = results.results?.[type];
+              const sr = results.results?.[type];
               return (
                 <div key={type} className="status-card">
                   <div className="status-icon-wrapper status-done"><Terminal /></div>
                   <div className="status-info">
                     <h3 style={{ textTransform: 'capitalize' }}>{type} Scanner</h3>
-                    <p>{scannerResult?.vulnerabilities?.length || 0} Issues Found</p>
+                    <p>{sr?.vulnerabilities?.length || 0} Issues Found</p>
                   </div>
                 </div>
               );
             })}
-
             {isScanning && scanStatus.detect === 'done' && (
               <div className="status-card">
                 <div className="status-icon-wrapper status-scanning"><Loader2 className="loader" /></div>
                 <div className="status-info"><h3>Deep Scan</h3><p>Auditing dependencies...</p></div>
               </div>
             )}
-
             <div className="status-card">
               <div className={`status-icon-wrapper status-${scanStatus.ai}`}>{getStatusIcon(scanStatus.ai)}</div>
               <div className="status-info">
                 <h3>AI Code Review</h3>
                 <p>{scanStatus.ai === 'done'
-                  ? (results?.results?.ai_review?.status === 'error'
-                    ? `Failed (${results?.results?.ai_review?.error || 'No API Key'})`
-                    : 'Completed')
+                  ? (results?.results?.ai_review?.status === 'error' ? `Failed (${results?.results?.ai_review?.error || 'No API Key'})` : 'Completed')
                   : (scanStatus.ai === 'scanning' ? 'Analyzing...' : 'Pending')}
                 </p>
               </div>
@@ -772,7 +755,7 @@ function ScannerApp({ apiFetch, onLogout }) {
                   { val: metrics.medium,   label: 'Medium',       cls: 'value-medium' },
                 ].map(({ val, label, cls }) => (
                   <div key={label} className="metric-card">
-                    <div className={`metric-value ${cls}`}>{val}</div>
+                    <div className={`metric-value ${cls}`}><AnimatedNumber value={val} /></div>
                     <div className="metric-label">{label}</div>
                   </div>
                 ))}
@@ -780,22 +763,27 @@ function ScannerApp({ apiFetch, onLogout }) {
 
               {allVulns.length > 0 && (
                 <div className="results-section">
-                  <h2 className="section-title"><FileCode2 size={24} color="#58a6ff" />Dependency Vulnerabilities</h2>
+                  <h2 className="section-title">
+                    <FileCode2 size={24} color="#58a6ff" />
+                    <span className="section-title-text">Dependency Vulnerabilities</span>
+                  </h2>
                   <VulnFilterBar allVulns={allVulns} filterSeverity={filterSeverity}
                     setFilterSeverity={setFilterSeverity} sortBy={sortBy} setSortBy={setSortBy} />
-                  {filteredAndSorted.length === 0 ? (
-                    <div className="vuln-empty">No {filterSeverity} vulnerabilities found.</div>
-                  ) : (
-                    <div className="vuln-grid">
-                      {filteredAndSorted.map((vuln, i) => <VulnCard key={i} vuln={vuln} />)}
-                    </div>
-                  )}
+                  {filteredAndSorted.length === 0
+                    ? <div className="vuln-empty">No {filterSeverity} vulnerabilities found.</div>
+                    : <div className="vuln-grid">
+                        {filteredAndSorted.map((vuln, i) => <VulnCard key={i} vuln={vuln} index={i} />)}
+                      </div>
+                  }
                 </div>
               )}
 
               {results.previous_reviews?.length > 0 && (
                 <div className="results-section">
-                  <h2 className="section-title"><History size={24} color="#d2a8ff" />Previous AI Reviews ({results.previous_reviews.length})</h2>
+                  <h2 className="section-title">
+                    <History size={24} color="#d2a8ff" />
+                    <span className="section-title-text">Previous AI Reviews ({results.previous_reviews.length})</span>
+                  </h2>
                   {results.previous_reviews.map((review, i) => (
                     <PreviousReviewItem key={i} review={review} index={i} total={results.previous_reviews.length} />
                   ))}
@@ -804,7 +792,10 @@ function ScannerApp({ apiFetch, onLogout }) {
 
               {results.results?.ai_review?.ai_output && (
                 <div className="results-section">
-                  <h2 className="section-title"><Bot size={24} color="#d2a8ff" />Claude AI Review — Latest</h2>
+                  <h2 className="section-title">
+                    <Bot size={24} color="#d2a8ff" />
+                    <span className="section-title-text">Claude AI Review — Latest</span>
+                  </h2>
                   <div className="ai-review-card">
                     <AIMarkdown>{results.results.ai_review.ai_output}</AIMarkdown>
                   </div>
@@ -813,7 +804,10 @@ function ScannerApp({ apiFetch, onLogout }) {
 
               {results.results?.ai_review?.status === 'error' && (
                 <div className="results-section">
-                  <h2 className="section-title"><Bot size={24} color="#ff7b72" />Claude AI Review Failed</h2>
+                  <h2 className="section-title">
+                    <Bot size={24} color="#ff7b72" />
+                    <span className="section-title-text">Claude AI Review Failed</span>
+                  </h2>
                   <div className="ai-review-card" style={{ borderColor: 'rgba(255,123,114,0.3)' }}>
                     <div className="ai-content" style={{ color: '#ff7b72' }}>
                       Error: {results.results.ai_review.error || 'Unknown error occurred during AI review.'}
@@ -846,14 +840,19 @@ function App() {
       return res;
     });
 
-  if (!credentials) return <LoginPage onLogin={handleLogin} />;
+  const view = new URLSearchParams(window.location.search).get('view');
 
-  const params = new URLSearchParams(window.location.search);
-  const view = params.get('view');
-
-  if (view === 'history')  return <HistoryView       apiFetch={apiFetch} onLogout={handleLogout} />;
-  if (view === 'packages') return <PackageHistoryView apiFetch={apiFetch} onLogout={handleLogout} />;
-  return <ScannerApp apiFetch={apiFetch} onLogout={handleLogout} />;
+  return (
+    <>
+      <AmbientBackground />
+      {!credentials
+        ? <LoginPage onLogin={handleLogin} />
+        : view === 'history'  ? <HistoryView       apiFetch={apiFetch} onLogout={handleLogout} />
+        : view === 'packages' ? <PackageHistoryView apiFetch={apiFetch} onLogout={handleLogout} />
+        : <ScannerApp apiFetch={apiFetch} onLogout={handleLogout} />
+      }
+    </>
+  );
 }
 
 export default App;

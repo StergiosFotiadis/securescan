@@ -89,7 +89,12 @@ header {
   align-items: center;
   justify-content: center;
   gap: 1rem;
-  filter: drop-shadow(0 0 20px rgba(88, 166, 255, 0.2));
+  animation: logoPulse 5s ease-in-out infinite;
+}
+
+@keyframes logoPulse {
+  0%, 100% { filter: drop-shadow(0 0 20px rgba(88,166,255,0.2)); }
+  50%       { filter: drop-shadow(0 0 45px rgba(88,166,255,0.55)) drop-shadow(0 0 80px rgba(210,168,255,0.15)); }
 }
 
 .subtitle {
@@ -164,6 +169,12 @@ header {
   box-shadow: 0 10px 25px rgba(31, 111, 235, 0.4);
   position: relative;
   overflow: hidden;
+  animation: btnBreath 4s ease-in-out infinite;
+}
+
+@keyframes btnBreath {
+  0%, 100% { box-shadow: 0 10px 25px rgba(31,111,235,0.4); }
+  50%       { box-shadow: 0 10px 40px rgba(31,111,235,0.7), 0 0 60px rgba(88,166,255,0.25); }
 }
 
 .scan-btn::after {
@@ -196,16 +207,18 @@ header {
   cursor: not-allowed;
   transform: none !important;
   box-shadow: none !important;
+  animation: none !important;
 }
 
 .scan-btn.scanning {
   background: #21262d;
   border: 1px solid var(--border-color);
+  animation: none;
 }
 
 /* Dashboard Styling */
 .dashboard {
-  animation: fadeIn 1.2s ease-out;
+  animation: fadeIn 0.25s ease-out;
 }
 
 .status-grid {
@@ -242,9 +255,10 @@ header {
 }
 
 .status-card:hover {
-  border-color: rgba(255,255,255,0.25);
-  transform: translateY(-5px);
-  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(88,166,255,0.35);
+  transform: translateY(-6px);
+  background: rgba(88,166,255,0.04);
+  box-shadow: var(--card-shadow), 0 0 35px rgba(88,166,255,0.1);
 }
 
 .status-icon-wrapper {
@@ -312,8 +326,10 @@ header {
 }
 
 .metric-card:hover {
-  border-color: var(--primary);
-  transform: translateY(-3px);
+  border-color: rgba(88,166,255,0.5);
+  transform: translateY(-5px);
+  box-shadow: var(--card-shadow), 0 0 30px rgba(88,166,255,0.12);
+  background: rgba(88,166,255,0.03);
 }
 
 .metric-value {
@@ -372,10 +388,14 @@ header {
 }
 
 .vuln-card:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.3);
-  transform: scale(1.02);
+  background: rgba(255,255,255,0.06);
+  transform: scale(1.02) translateY(-2px);
 }
+
+.vuln-critical:hover { border-color: rgba(255,123,114,0.5); box-shadow: var(--card-shadow), 0 0 30px rgba(255,123,114,0.2); }
+.vuln-high:hover     { border-color: rgba(255,166,87,0.5);  box-shadow: var(--card-shadow), 0 0 25px rgba(255,166,87,0.2); }
+.vuln-medium:hover   { border-color: rgba(210,168,255,0.5); box-shadow: var(--card-shadow), 0 0 25px rgba(210,168,255,0.2); }
+.vuln-low:hover      { border-color: rgba(165,214,255,0.5); box-shadow: var(--card-shadow), 0 0 20px rgba(165,214,255,0.15); }
 
 .vuln-card::before {
   content: '';
@@ -885,6 +905,124 @@ header {
 .repo-delete-cancel:hover {
   background: rgba(255,255,255,0.08);
   color: var(--text-main);
+}
+
+/* ── Ambient Background Orbs ─────────────────────────────────────────────── */
+.ambient-orb {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  will-change: transform;
+}
+
+.ambient-orb-1 {
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, rgba(88,166,255,0.18), transparent 65%);
+  top: -250px;
+  left: -250px;
+  filter: blur(70px);
+  animation: orbDrift1 22s ease-in-out infinite;
+}
+
+.ambient-orb-2 {
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(210,168,255,0.16), transparent 65%);
+  bottom: -200px;
+  right: -200px;
+  filter: blur(80px);
+  animation: orbDrift2 28s ease-in-out infinite;
+}
+
+.ambient-orb-3 {
+  width: 450px;
+  height: 450px;
+  background: radial-gradient(circle, rgba(63,185,80,0.1), transparent 65%);
+  top: 40%;
+  left: 55%;
+  filter: blur(90px);
+  animation: orbDrift3 19s ease-in-out infinite;
+}
+
+@keyframes orbDrift1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(80px, 50px) scale(1.08); }
+  66%       { transform: translate(-40px, 90px) scale(0.94); }
+}
+
+@keyframes orbDrift2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(-90px, -60px) scale(1.1); }
+  66%       { transform: translate(50px, -100px) scale(0.92); }
+}
+
+@keyframes orbDrift3 {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50%       { transform: translate(-50%, -50%) scale(1.25); opacity: 0.8; }
+}
+
+/* ── Staggered Card Entrances ────────────────────────────────────────────── */
+@keyframes slideInUp {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.status-grid .status-card {
+  animation: slideInUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.status-grid .status-card:nth-child(1) { animation-delay: 0.05s; }
+.status-grid .status-card:nth-child(2) { animation-delay: 0.13s; }
+.status-grid .status-card:nth-child(3) { animation-delay: 0.21s; }
+.status-grid .status-card:nth-child(4) { animation-delay: 0.29s; }
+.status-grid .status-card:nth-child(5) { animation-delay: 0.37s; }
+.status-grid .status-card:nth-child(6) { animation-delay: 0.45s; }
+
+.metrics-bar .metric-card {
+  animation: slideInUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.metrics-bar .metric-card:nth-child(1) { animation-delay: 0.05s; }
+.metrics-bar .metric-card:nth-child(2) { animation-delay: 0.13s; }
+.metrics-bar .metric-card:nth-child(3) { animation-delay: 0.21s; }
+.metrics-bar .metric-card:nth-child(4) { animation-delay: 0.29s; }
+
+.anim-slide-in {
+  animation: slideInUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ── Severity Glow System ────────────────────────────────────────────────── */
+@keyframes criticalPulse {
+  0%, 100% { box-shadow: var(--card-shadow), 0 0 12px rgba(255,123,114,0.08); }
+  50%       { box-shadow: var(--card-shadow), 0 0 30px rgba(255,123,114,0.28), 0 0 60px rgba(255,123,114,0.08); }
+}
+
+@keyframes highPulse {
+  0%, 100% { box-shadow: var(--card-shadow), 0 0 8px rgba(255,166,87,0.06); }
+  50%       { box-shadow: var(--card-shadow), 0 0 22px rgba(255,166,87,0.22); }
+}
+
+.vuln-critical { animation: criticalPulse 3.5s ease-in-out infinite; }
+.vuln-high     { animation: highPulse 5s ease-in-out infinite; }
+
+/* pause pulse on hover so the hover glow takes over cleanly */
+.vuln-critical:hover,
+.vuln-high:hover { animation-play-state: paused; }
+
+/* ── Gradient Section Titles ─────────────────────────────────────────────── */
+@keyframes gradientShift {
+  0%   { background-position: 0% center; }
+  50%  { background-position: 100% center; }
+  100% { background-position: 0% center; }
+}
+
+.section-title-text {
+  background: linear-gradient(90deg, #f0f6fc 0%, var(--primary) 45%, var(--accent) 80%, #f0f6fc 100%);
+  background-size: 250% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradientShift 6s ease-in-out infinite;
 }
 
 /* ── Header Nav ──────────────────────────────────────────────────────────── */
