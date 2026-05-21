@@ -323,6 +323,8 @@ header {
   backdrop-filter: var(--glass-blur);
   box-shadow: var(--card-shadow);
   transition: all 0.4s ease;
+  position: relative;
+  overflow: hidden;
 }
 
 .metric-card:hover {
@@ -356,7 +358,6 @@ header {
 /* Vulnerability Cards */
 .results-section {
   margin-bottom: 5rem;
-  animation: fadeInUp 0.8s ease-out;
 }
 
 .section-title {
@@ -905,6 +906,200 @@ header {
 .repo-delete-cancel:hover {
   background: rgba(255,255,255,0.08);
   color: var(--text-main);
+}
+
+/* ── Navigation Bar ──────────────────────────────────────────────────────── */
+.nav-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2rem;
+  background: rgba(5, 6, 8, 0.88);
+  backdrop-filter: blur(24px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  gap: 1rem;
+  animation: fadeInDown 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: -0.3px;
+  flex-shrink: 0;
+}
+
+.nav-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  padding: 0.3rem;
+}
+
+.nav-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.48rem 1.1rem;
+  border-radius: 10px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.87rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.nav-tab:hover { color: var(--text-main); background: rgba(255,255,255,0.06); }
+
+.nav-tab-scanner.active  { color: var(--primary); background: rgba(88,166,255,0.12); }
+.nav-tab-history.active  { color: var(--accent);  background: rgba(210,168,255,0.10); }
+.nav-tab-packages.active { color: var(--primary); background: rgba(88,166,255,0.12); }
+
+.nav-sign-out {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.48rem 1rem;
+  border-radius: 10px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.nav-sign-out:hover {
+  color: var(--critical);
+  background: rgba(255,123,114,0.08);
+  border-color: rgba(255,123,114,0.2);
+}
+
+/* Page enter transition — triggered by React key change */
+@keyframes pageFadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.with-nav {
+  padding-top: 64px;
+  min-height: 100vh;
+  animation: pageFadeIn 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── Card Shine Sweep ─────────────────────────────────────────────────────── */
+.status-card::after,
+.metric-card::after,
+.vuln-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 55%;
+  height: 100%;
+  background: linear-gradient(
+    108deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.07) 50%,
+    transparent 70%
+  );
+  transition: left 0.7s ease;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.status-card:hover::after,
+.metric-card:hover::after,
+.vuln-card:hover::after { left: 160%; }
+
+/* ── Scroll Reveal ────────────────────────────────────────────────────────── */
+.reveal-hidden {
+  opacity: 0;
+  transform: translateY(26px);
+  transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.reveal-visible {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── Skeleton Loading ─────────────────────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -400% center; }
+  100% { background-position: 400% center; }
+}
+
+.skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.skeleton-block {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-glass);
+  border-radius: 24px;
+  padding: 1.5rem 1.75rem;
+  backdrop-filter: var(--glass-blur);
+}
+
+.skeleton-line {
+  height: 13px;
+  border-radius: 8px;
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.04) 25%,
+    rgba(255,255,255,0.09) 50%,
+    rgba(255,255,255,0.04) 75%
+  );
+  background-size: 400% auto;
+  animation: shimmer 2.2s ease-in-out infinite;
+  margin-bottom: 0.8rem;
+}
+
+.skeleton-line:last-child { margin-bottom: 0; }
+.skeleton-short  { width: 30%; }
+.skeleton-long   { width: 100%; }
+.skeleton-medium { width: 60%; }
+.skeleton-xshort { width: 18%; }
+
+/* ── Scan Completion Flash ────────────────────────────────────────────────── */
+@keyframes completionFlash {
+  0%   { box-shadow: inset 0 0 0 2px rgba(63,185,80,0),    inset 0 0 80px  rgba(63,185,80,0); }
+  18%  { box-shadow: inset 0 0 0 2px rgba(63,185,80,0.45), inset 0 0 120px rgba(63,185,80,0.12); }
+  100% { box-shadow: inset 0 0 0 2px rgba(63,185,80,0),    inset 0 0 80px  rgba(63,185,80,0); }
+}
+
+.scan-complete-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 999;
+  animation: completionFlash 1.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 /* ── Ambient Background Orbs ─────────────────────────────────────────────── */
@@ -1523,4 +1718,8 @@ header {
   .scan-btn { padding: 1.25rem; width: 100%; justify-content: center; }
   .metric-card { min-width: 100%; }
   .repo-history-url { font-size: 0.8rem; }
+  .nav-bar { padding: 0 1rem; }
+  .nav-logo span { display: none; }
+  .nav-tab { padding: 0.45rem 0.7rem; font-size: 0.8rem; gap: 0.3rem; }
+  .nav-sign-out span { display: none; }
 }

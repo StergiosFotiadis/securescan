@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   ShieldCheck, Search, Box, FileCode2, Bot,
   CheckCircle2, XCircle, Loader2, AlertTriangle,
   Code, Terminal, Key, History, ChevronDown, ChevronRight,
-  ExternalLink, User, Lock, LogOut, Trash2,
+  User, Lock, LogOut, Trash2,
   ArrowUpDown, SlidersHorizontal, Package,
   TrendingUp, TrendingDown, Minus,
 } from 'lucide-react';
@@ -26,9 +26,7 @@ function formatTimestamp(iso) {
   } catch { return iso; }
 }
 
-function vulnKey(v) {
-  return v.cve_id || `${v.package_name}@${v.version}`;
-}
+function vulnKey(v) { return v.cve_id || `${v.package_name}@${v.version}`; }
 
 function computeDelta(prevScan, currScan) {
   const prevKeys = new Set((prevScan?.vulnerabilities || []).map(vulnKey));
@@ -58,13 +56,27 @@ function useCountUp(target, duration = 1100) {
     const step = (ts) => {
       if (!start) start = ts;
       const p = Math.min((ts - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - p, 4); // easeOutQuart
-      setVal(Math.round(eased * target));
+      setVal(Math.round((1 - Math.pow(1 - p, 4)) * target));
       if (p < 1) requestAnimationFrame(step);
     };
     requestAnimationFrame(step);
   }, [target, duration]);
   return val;
+}
+
+function useScrollReveal(threshold = 0.12) {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) { setVisible(true); obs.unobserve(el); }
+    }, { threshold });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+  return [ref, visible];
 }
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
@@ -80,8 +92,35 @@ function AmbientBackground() {
 }
 
 function AnimatedNumber({ value }) {
-  const n = useCountUp(value);
-  return <>{n}</>;
+  return <>{useCountUp(value)}</>;
+}
+
+function RevealCard({ children, delay = 0, className = '', style = {} }) {
+  const [ref, visible] = useScrollReveal();
+  return (
+    <div
+      ref={ref}
+      className={`${visible ? 'reveal-visible' : 'reveal-hidden'} ${className}`}
+      style={{ ...style, transitionDelay: `${delay}s` }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function SkeletonLoader() {
+  return (
+    <div className="skeleton-list">
+      {[0, 1, 2].map(i => (
+        <div key={i} className="skeleton-block">
+          <div className="skeleton-line skeleton-short" />
+          <div className="skeleton-line skeleton-long" />
+          <div className="skeleton-line skeleton-medium" />
+          <div className="skeleton-line skeleton-xshort" style={{ marginTop: '0.4rem' }} />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function AIMarkdown({ children }) {
@@ -92,13 +131,10 @@ function AIMarkdown({ children }) {
   );
 }
 
-function VulnCard({ vuln, isNew = false, index = 0 }) {
+function VulnCard({ vuln, isNew = false }) {
   const sev = vuln.severity?.toLowerCase() || 'high';
   return (
-    <div
-      className={`vuln-card vuln-${sev}${isNew ? ' vuln-card-new' : ''} anim-slide-in`}
-      style={{ animationDelay: `${Math.min(index * 0.06, 0.54)}s` }}
-    >
+    <div className={`vuln-card vuln-${sev}${isNew ? ' vuln-card-new' : ''}`}>
       {isNew && <span className="vuln-new-badge">NEW</span>}
       <div className="vuln-header">
         <div>
@@ -109,13 +145,9 @@ function VulnCard({ vuln, isNew = false, index = 0 }) {
       </div>
       <p className="vuln-desc">{vuln.description}</p>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
-        {vuln.cve_id ? (
-          <a href={`https://nvd.nist.gov/vuln/detail/${vuln.cve_id}`} target="_blank" rel="noopener noreferrer" className="vuln-cve">
-            {vuln.cve_id}
-          </a>
-        ) : (
-          <span className="vuln-cve" style={{ opacity: 0.5 }}>No CVE</span>
-        )}
+        {vuln.cve_id
+          ? <a href={`https://nvd.nist.gov/vuln/detail/${vuln.cve_id}`} target="_blank" rel="noopener noreferrer" className="vuln-cve">{vuln.cve_id}</a>
+          : <span className="vuln-cve" style={{ opacity: 0.5 }}>No CVE</span>}
         <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
           {vuln.scanner_type || 'Unknown'}
         </span>
@@ -155,21 +187,13 @@ function VulnFilterBar({ allVulns, filterSeverity, setFilterSeverity, sortBy, se
     medium:   allVulns.filter(v => v.severity?.toLowerCase() === 'medium').length,
     low:      allVulns.filter(v => v.severity?.toLowerCase() === 'low').length,
   };
-  const pills = [
-    { key: 'all', label: 'All' },
-    { key: 'critical', label: 'Critical' },
-    { key: 'high', label: 'High' },
-    { key: 'medium', label: 'Medium' },
-    { key: 'low', label: 'Low' },
-  ];
   return (
     <div className="vuln-filter-bar">
       <div className="vuln-filter-left">
         <span className="vuln-filter-label"><SlidersHorizontal size={14} /> Filter</span>
-        {pills.map(({ key, label }) =>
+        {[{ key: 'all', label: 'All' }, { key: 'critical', label: 'Critical' }, { key: 'high', label: 'High' }, { key: 'medium', label: 'Medium' }, { key: 'low', label: 'Low' }].map(({ key, label }) =>
           (counts[key] > 0 || key === 'all') ? (
-            <button key={key} className={`vuln-pill vuln-pill-${key} ${filterSeverity === key ? 'active' : ''}`}
-              onClick={() => setFilterSeverity(key)}>
+            <button key={key} className={`vuln-pill vuln-pill-${key} ${filterSeverity === key ? 'active' : ''}`} onClick={() => setFilterSeverity(key)}>
               {label}<span className="vuln-pill-count">{counts[key]}</span>
             </button>
           ) : null
@@ -181,6 +205,38 @@ function VulnFilterBar({ allVulns, filterSeverity, setFilterSeverity, sortBy, se
         <button className={`vuln-sort-btn ${sortBy === 'name' ? 'active' : ''}`} onClick={() => setSortBy('name')}>Package A–Z</button>
       </div>
     </div>
+  );
+}
+
+// ─── Navigation Bar ───────────────────────────────────────────────────────────
+
+function NavBar({ view, onNavigate, onLogout }) {
+  const tabs = [
+    { id: 'scanner',  label: 'Scanner',         icon: <ShieldCheck size={15} />, cls: 'nav-tab-scanner' },
+    { id: 'history',  label: 'AI History',       icon: <History size={15} />,     cls: 'nav-tab-history' },
+    { id: 'packages', label: 'Package History',  icon: <Package size={15} />,     cls: 'nav-tab-packages' },
+  ];
+  return (
+    <nav className="nav-bar">
+      <div className="nav-logo">
+        <ShieldCheck size={18} color="#58a6ff" />
+        <span>SecureScan</span>
+      </div>
+      <div className="nav-tabs">
+        {tabs.map(({ id, label, icon, cls }) => (
+          <button
+            key={id}
+            className={`nav-tab ${cls} ${view === id ? 'active' : ''}`}
+            onClick={() => onNavigate(id)}
+          >
+            {icon}{label}
+          </button>
+        ))}
+      </div>
+      <button className="nav-sign-out" onClick={onLogout}>
+        <LogOut size={15} /><span>Sign Out</span>
+      </button>
+    </nav>
   );
 }
 
@@ -267,7 +323,7 @@ function PreviousReviewItem({ review, index, total }) {
   );
 }
 
-function RepoHistoryBlock({ repoUrl, reviews, onDelete }) {
+function RepoHistoryBlock({ repoUrl, reviews, onDelete, revealDelay }) {
   const [collapsed, setCollapsed] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -279,43 +335,45 @@ function RepoHistoryBlock({ repoUrl, reviews, onDelete }) {
   };
 
   return (
-    <div className="repo-history-block">
-      <div className="repo-history-header-row">
-        <button className="repo-history-header" onClick={() => setCollapsed(c => !c)}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            {collapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
-            <span className="repo-history-url">{repoUrl}</span>
-          </span>
-          <span className="repo-history-count">{reviews.length} scan{reviews.length !== 1 ? 's' : ''}</span>
-        </button>
-        <div className="repo-delete-area">
-          {confirmDelete ? (
-            <>
-              <span className="repo-delete-confirm-text">Delete all scans?</span>
-              <button className="repo-delete-btn repo-delete-confirm" onClick={handleDelete} disabled={deleting}>
-                {deleting ? <Loader2 size={13} className="loader" /> : 'Yes, delete'}
+    <RevealCard delay={revealDelay}>
+      <div className="repo-history-block">
+        <div className="repo-history-header-row">
+          <button className="repo-history-header" onClick={() => setCollapsed(c => !c)}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              {collapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
+              <span className="repo-history-url">{repoUrl}</span>
+            </span>
+            <span className="repo-history-count">{reviews.length} scan{reviews.length !== 1 ? 's' : ''}</span>
+          </button>
+          <div className="repo-delete-area">
+            {confirmDelete ? (
+              <>
+                <span className="repo-delete-confirm-text">Delete all scans?</span>
+                <button className="repo-delete-btn repo-delete-confirm" onClick={handleDelete} disabled={deleting}>
+                  {deleting ? <Loader2 size={13} className="loader" /> : 'Yes, delete'}
+                </button>
+                <button className="repo-delete-btn repo-delete-cancel" onClick={() => setConfirmDelete(false)} disabled={deleting}>Cancel</button>
+              </>
+            ) : (
+              <button className="repo-delete-btn repo-delete-idle" onClick={() => setConfirmDelete(true)} title="Delete history">
+                <Trash2 size={15} />
               </button>
-              <button className="repo-delete-btn repo-delete-cancel" onClick={() => setConfirmDelete(false)} disabled={deleting}>Cancel</button>
-            </>
-          ) : (
-            <button className="repo-delete-btn repo-delete-idle" onClick={() => setConfirmDelete(true)} title="Delete history">
-              <Trash2 size={15} />
-            </button>
-          )}
+            )}
+          </div>
         </div>
+        {!collapsed && (
+          <div style={{ padding: '0 1.5rem 1.5rem' }}>
+            {reviews.map((review, i) => (
+              <PreviousReviewItem key={i} review={review} index={i} total={reviews.length} />
+            ))}
+          </div>
+        )}
       </div>
-      {!collapsed && (
-        <div style={{ padding: '0 1.5rem 1.5rem' }}>
-          {reviews.map((review, i) => (
-            <PreviousReviewItem key={i} review={review} index={i} total={reviews.length} />
-          ))}
-        </div>
-      )}
-    </div>
+    </RevealCard>
   );
 }
 
-function HistoryView({ apiFetch, onLogout }) {
+function HistoryView({ apiFetch }) {
   const [repos, setRepos] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
@@ -337,11 +395,8 @@ function HistoryView({ apiFetch, onLogout }) {
       <header>
         <h1 className="logo"><History size={40} color="#d2a8ff" />AI Review History</h1>
         <p className="subtitle">All stored AI security reviews across every scanned repository</p>
-        <button className="logout-btn" onClick={onLogout}><LogOut size={15} /> Sign Out</button>
       </header>
-      {loading && <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '4rem' }}>
-        <Loader2 size={36} className="loader" style={{ margin: '0 auto 1rem' }} /><p>Loading history…</p>
-      </div>}
+      {loading && <SkeletonLoader />}
       {err && <div className="dashboard"><div className="status-card" style={{ borderColor: 'rgba(255,123,114,0.3)' }}>
         <div className="status-icon-wrapper" style={{ color: '#ff7b72', background: 'rgba(255,123,114,0.1)' }}><AlertTriangle size={24} /></div>
         <div className="status-info"><h3>Error</h3><p style={{ color: '#ff7b72' }}>{err}</p></div>
@@ -353,8 +408,9 @@ function HistoryView({ apiFetch, onLogout }) {
       </div>}
       {repos && repos.length > 0 && (
         <div className="history-list">
-          {repos.map(item => (
-            <RepoHistoryBlock key={item.repo_url} repoUrl={item.repo_url} reviews={item.reviews} onDelete={handleDelete} />
+          {repos.map((item, i) => (
+            <RepoHistoryBlock key={item.repo_url} repoUrl={item.repo_url} reviews={item.reviews}
+              onDelete={handleDelete} revealDelay={i * 0.07} />
           ))}
         </div>
       )}
@@ -386,10 +442,9 @@ function ScanEntry({ scan, delta, isLatest }) {
 
   const filteredVulns = scan.vulnerabilities
     .filter(v => filterSeverity === 'all' || v.severity?.toLowerCase() === filterSeverity)
-    .sort((a, b) => {
-      if (sortBy === 'severity') return (SEVERITY_ORDER[a.severity?.toLowerCase()] ?? 4) - (SEVERITY_ORDER[b.severity?.toLowerCase()] ?? 4);
-      return (a.package_name || '').localeCompare(b.package_name || '');
-    });
+    .sort((a, b) => sortBy === 'severity'
+      ? (SEVERITY_ORDER[a.severity?.toLowerCase()] ?? 4) - (SEVERITY_ORDER[b.severity?.toLowerCase()] ?? 4)
+      : (a.package_name || '').localeCompare(b.package_name || ''));
 
   return (
     <div className={`scan-entry${isLatest ? ' scan-entry-latest' : ''}`}>
@@ -404,18 +459,14 @@ function ScanEntry({ scan, delta, isLatest }) {
         </div>
         <div className="scan-entry-right">
           <SeverityChips vulnerabilities={scan.vulnerabilities} />
-          {delta ? (
-            (delta.newVulns.length === 0 && delta.fixedVulns.length === 0) ? (
-              <span className="delta-badge delta-same">No changes</span>
-            ) : (
-              <span className="delta-badge delta-mixed">
-                {delta.newVulns.length   > 0 && <span className="delta-part delta-part-new">+{delta.newVulns.length} new</span>}
-                {delta.fixedVulns.length > 0 && <span className="delta-part delta-part-fixed">−{delta.fixedVulns.length} fixed</span>}
-              </span>
-            )
-          ) : (
-            <span className="delta-badge delta-baseline">Baseline</span>
-          )}
+          {delta
+            ? (delta.newVulns.length === 0 && delta.fixedVulns.length === 0
+              ? <span className="delta-badge delta-same">No changes</span>
+              : <span className="delta-badge delta-mixed">
+                  {delta.newVulns.length   > 0 && <span className="delta-part delta-part-new">+{delta.newVulns.length} new</span>}
+                  {delta.fixedVulns.length > 0 && <span className="delta-part delta-part-fixed">−{delta.fixedVulns.length} fixed</span>}
+                </span>)
+            : <span className="delta-badge delta-baseline">Baseline</span>}
           {open ? <ChevronDown size={15} style={{ flexShrink: 0, opacity: 0.5 }} /> : <ChevronRight size={15} style={{ flexShrink: 0, opacity: 0.5 }} />}
         </div>
       </button>
@@ -430,9 +481,7 @@ function ScanEntry({ scan, delta, isLatest }) {
                     <AlertTriangle size={14} />
                     {delta.newVulns.length} new vulnerability{delta.newVulns.length !== 1 ? 'ies' : ''} introduced
                   </div>
-                  <div className="vuln-grid">
-                    {delta.newVulns.map((v, i) => <VulnCard key={i} vuln={v} isNew={true} index={i} />)}
-                  </div>
+                  <div className="vuln-grid">{delta.newVulns.map((v, i) => <VulnCard key={i} vuln={v} isNew />)}</div>
                 </div>
               )}
               {delta.fixedVulns.length > 0 && (
@@ -441,9 +490,7 @@ function ScanEntry({ scan, delta, isLatest }) {
                     <CheckCircle2 size={14} />
                     {delta.fixedVulns.length} vulnerability{delta.fixedVulns.length !== 1 ? 'ies' : ''} resolved
                   </div>
-                  <div className="fixed-vuln-list">
-                    {delta.fixedVulns.map((v, i) => <FixedVulnRow key={i} vuln={v} />)}
-                  </div>
+                  <div className="fixed-vuln-list">{delta.fixedVulns.map((v, i) => <FixedVulnRow key={i} vuln={v} />)}</div>
                 </div>
               )}
             </div>
@@ -458,14 +505,9 @@ function ScanEntry({ scan, delta, isLatest }) {
                   setFilterSeverity={setFilterSeverity} sortBy={sortBy} setSortBy={setSortBy} />
                 {filteredVulns.length === 0
                   ? <div className="vuln-empty">No {filterSeverity} vulnerabilities in this scan.</div>
-                  : <div className="vuln-grid">
-                      {filteredVulns.map((v, i) => <VulnCard key={i} vuln={v} isNew={newVulnKeys.has(vulnKey(v))} index={i} />)}
-                    </div>
-                }
+                  : <div className="vuln-grid">{filteredVulns.map((v, i) => <VulnCard key={i} vuln={v} isNew={newVulnKeys.has(vulnKey(v))} />)}</div>}
               </>
-            ) : (
-              <div className="vuln-empty">No vulnerabilities found in this scan — clean!</div>
-            )}
+            ) : <div className="vuln-empty">No vulnerabilities found in this scan — clean!</div>}
           </div>
         </div>
       )}
@@ -473,11 +515,10 @@ function ScanEntry({ scan, delta, isLatest }) {
   );
 }
 
-function RepoVulnBlock({ repoUrl, scans, onDelete }) {
+function RepoVulnBlock({ repoUrl, scans, onDelete, revealDelay }) {
   const [collapsed, setCollapsed] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
-
   const sortedScans = [...scans].reverse();
 
   const handleDelete = async () => {
@@ -487,51 +528,50 @@ function RepoVulnBlock({ repoUrl, scans, onDelete }) {
   };
 
   return (
-    <div className="repo-history-block">
-      <div className="repo-history-header-row">
-        <button className="repo-history-header" onClick={() => setCollapsed(c => !c)}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
-            {collapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
-            <span className="repo-history-url">{repoUrl}</span>
-          </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-            <span className="repo-history-count">{scans.length} scan{scans.length !== 1 ? 's' : ''}</span>
-            <TrendBadge scans={scans} />
-          </span>
-        </button>
-        <div className="repo-delete-area">
-          {confirmDelete ? (
-            <>
-              <span className="repo-delete-confirm-text">Delete all scans?</span>
-              <button className="repo-delete-btn repo-delete-confirm" onClick={handleDelete} disabled={deleting}>
-                {deleting ? <Loader2 size={13} className="loader" /> : 'Yes, delete'}
+    <RevealCard delay={revealDelay}>
+      <div className="repo-history-block">
+        <div className="repo-history-header-row">
+          <button className="repo-history-header" onClick={() => setCollapsed(c => !c)}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
+              {collapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
+              <span className="repo-history-url">{repoUrl}</span>
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+              <span className="repo-history-count">{scans.length} scan{scans.length !== 1 ? 's' : ''}</span>
+              <TrendBadge scans={scans} />
+            </span>
+          </button>
+          <div className="repo-delete-area">
+            {confirmDelete ? (
+              <>
+                <span className="repo-delete-confirm-text">Delete all scans?</span>
+                <button className="repo-delete-btn repo-delete-confirm" onClick={handleDelete} disabled={deleting}>
+                  {deleting ? <Loader2 size={13} className="loader" /> : 'Yes, delete'}
+                </button>
+                <button className="repo-delete-btn repo-delete-cancel" onClick={() => setConfirmDelete(false)} disabled={deleting}>Cancel</button>
+              </>
+            ) : (
+              <button className="repo-delete-btn repo-delete-idle" onClick={() => setConfirmDelete(true)} title="Delete history">
+                <Trash2 size={15} />
               </button>
-              <button className="repo-delete-btn repo-delete-cancel" onClick={() => setConfirmDelete(false)} disabled={deleting}>Cancel</button>
-            </>
-          ) : (
-            <button className="repo-delete-btn repo-delete-idle" onClick={() => setConfirmDelete(true)} title="Delete history">
-              <Trash2 size={15} />
-            </button>
-          )}
+            )}
+          </div>
         </div>
-      </div>
-      {!collapsed && (
-        <div className="scan-timeline">
-          {sortedScans.map((scan, i) => {
-            const prevScan = sortedScans[i + 1] ?? null;
-            return (
+        {!collapsed && (
+          <div className="scan-timeline">
+            {sortedScans.map((scan, i) => (
               <ScanEntry key={scan.timestamp} scan={scan}
-                delta={prevScan ? computeDelta(prevScan, scan) : null}
+                delta={sortedScans[i + 1] ? computeDelta(sortedScans[i + 1], scan) : null}
                 isLatest={i === 0} />
-            );
-          })}
-        </div>
-      )}
-    </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </RevealCard>
   );
 }
 
-function PackageHistoryView({ apiFetch, onLogout }) {
+function PackageHistoryView({ apiFetch }) {
   const [repos, setRepos] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
@@ -553,11 +593,8 @@ function PackageHistoryView({ apiFetch, onLogout }) {
       <header>
         <h1 className="logo"><Package size={40} color="#58a6ff" />Package History</h1>
         <p className="subtitle">Vulnerability trend across all scanned repositories — track what's introduced and what's fixed</p>
-        <button className="logout-btn" onClick={onLogout}><LogOut size={15} /> Sign Out</button>
       </header>
-      {loading && <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '4rem' }}>
-        <Loader2 size={36} className="loader" style={{ margin: '0 auto 1rem' }} /><p>Loading history…</p>
-      </div>}
+      {loading && <SkeletonLoader />}
       {err && <div className="dashboard"><div className="status-card" style={{ borderColor: 'rgba(255,123,114,0.3)' }}>
         <div className="status-icon-wrapper" style={{ color: '#ff7b72', background: 'rgba(255,123,114,0.1)' }}><AlertTriangle size={24} /></div>
         <div className="status-info"><h3>Error</h3><p style={{ color: '#ff7b72' }}>{err}</p></div>
@@ -569,8 +606,9 @@ function PackageHistoryView({ apiFetch, onLogout }) {
       </div>}
       {repos && repos.length > 0 && (
         <div className="history-list">
-          {repos.map(item => (
-            <RepoVulnBlock key={item.repo_url} repoUrl={item.repo_url} scans={item.scans} onDelete={handleDelete} />
+          {repos.map((item, i) => (
+            <RepoVulnBlock key={item.repo_url} repoUrl={item.repo_url} scans={item.scans}
+              onDelete={handleDelete} revealDelay={i * 0.07} />
           ))}
         </div>
       )}
@@ -580,7 +618,7 @@ function PackageHistoryView({ apiFetch, onLogout }) {
 
 // ─── Main Scanner App ─────────────────────────────────────────────────────────
 
-function ScannerApp({ apiFetch, onLogout }) {
+function ScannerApp({ apiFetch }) {
   const [repoUrl, setRepoUrl] = useState('');
   const [githubToken, setGithubToken] = useState('');
   const [isScanning, setIsScanning] = useState(false);
@@ -589,12 +627,7 @@ function ScannerApp({ apiFetch, onLogout }) {
   const [filterSeverity, setFilterSeverity] = useState('all');
   const [sortBy, setSortBy] = useState('severity');
   const [scanStatus, setScanStatus] = useState({ detect: 'idle', scanners: 'idle', ai: 'idle' });
-
-  const openTab = (view) => {
-    const url = new URL(window.location.href);
-    url.searchParams.set('view', view);
-    window.open(url.toString(), '_blank');
-  };
+  const [scanComplete, setScanComplete] = useState(false);
 
   const handleScan = async (e) => {
     e.preventDefault();
@@ -604,6 +637,7 @@ function ScannerApp({ apiFetch, onLogout }) {
     setError(null);
     setFilterSeverity('all');
     setSortBy('severity');
+    setScanComplete(false);
     setScanStatus({ detect: 'scanning', scanners: 'idle', ai: 'idle' });
     try {
       const response = await apiFetch('/scan', {
@@ -611,14 +645,13 @@ function ScannerApp({ apiFetch, onLogout }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ repo_url: repoUrl, github_token: githubToken }),
       });
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.detail || 'Scan failed');
-      }
+      if (!response.ok) { const e = await response.json(); throw new Error(e.detail || 'Scan failed'); }
       setScanStatus({ detect: 'done', scanners: 'scanning', ai: 'scanning' });
       const data = await response.json();
       setResults(data);
       setScanStatus({ detect: 'done', scanners: 'done', ai: 'done' });
+      setScanComplete(true);
+      setTimeout(() => setScanComplete(false), 1800);
     } catch (err) {
       setError(err.message);
       setScanStatus({ detect: 'error', scanners: 'error', ai: 'error' });
@@ -627,8 +660,8 @@ function ScannerApp({ apiFetch, onLogout }) {
     }
   };
 
-  const getStatusIcon = (status) => {
-    switch (status) {
+  const getStatusIcon = (s) => {
+    switch (s) {
       case 'idle':     return <Box />;
       case 'scanning': return <Loader2 className="loader" />;
       case 'done':     return <CheckCircle2 />;
@@ -639,22 +672,17 @@ function ScannerApp({ apiFetch, onLogout }) {
 
   const getAllVulnerabilities = () => {
     if (!results?.results) return [];
-    const vulns = [];
-    Object.keys(results.results).forEach(key => {
-      if (key === 'ai_review') return;
-      const r = results.results[key];
-      if (r?.vulnerabilities) vulns.push(...r.vulnerabilities);
-    });
-    return vulns;
+    return Object.keys(results.results)
+      .filter(k => k !== 'ai_review')
+      .flatMap(k => results.results[k]?.vulnerabilities || []);
   };
 
   const allVulns = getAllVulnerabilities();
   const filteredAndSorted = allVulns
     .filter(v => filterSeverity === 'all' || v.severity?.toLowerCase() === filterSeverity)
-    .sort((a, b) => {
-      if (sortBy === 'severity') return (SEVERITY_ORDER[a.severity?.toLowerCase()] ?? 4) - (SEVERITY_ORDER[b.severity?.toLowerCase()] ?? 4);
-      return (a.package_name || '').localeCompare(b.package_name || '');
-    });
+    .sort((a, b) => sortBy === 'severity'
+      ? (SEVERITY_ORDER[a.severity?.toLowerCase()] ?? 4) - (SEVERITY_ORDER[b.severity?.toLowerCase()] ?? 4)
+      : (a.package_name || '').localeCompare(b.package_name || ''));
 
   const metrics = {
     total:    allVulns.length,
@@ -665,18 +693,11 @@ function ScannerApp({ apiFetch, onLogout }) {
 
   return (
     <div className="app-container">
-      <header style={{ position: 'relative' }}>
+      {scanComplete && <div className="scan-complete-overlay" />}
+
+      <header>
         <h1 className="logo"><ShieldCheck size={40} color="#58a6ff" />SecureScan</h1>
         <p className="subtitle">Universal Security Scanner for GitHub Repositories</p>
-        <div className="header-nav">
-          <button className="history-tab-btn" onClick={() => openTab('history')}>
-            <History size={18} /> AI Review History <ExternalLink size={14} style={{ opacity: 0.6 }} />
-          </button>
-          <button className="history-tab-btn packages-tab-btn" onClick={() => openTab('packages')}>
-            <Package size={18} /> Package History <ExternalLink size={14} style={{ opacity: 0.6 }} />
-          </button>
-        </div>
-        <button className="logout-btn" onClick={onLogout}><LogOut size={15} /> Sign Out</button>
       </header>
 
       <form className="search-container" onSubmit={handleScan}>
@@ -762,7 +783,7 @@ function ScannerApp({ apiFetch, onLogout }) {
               </div>
 
               {allVulns.length > 0 && (
-                <div className="results-section">
+                <RevealCard className="results-section">
                   <h2 className="section-title">
                     <FileCode2 size={24} color="#58a6ff" />
                     <span className="section-title-text">Dependency Vulnerabilities</span>
@@ -771,15 +792,12 @@ function ScannerApp({ apiFetch, onLogout }) {
                     setFilterSeverity={setFilterSeverity} sortBy={sortBy} setSortBy={setSortBy} />
                   {filteredAndSorted.length === 0
                     ? <div className="vuln-empty">No {filterSeverity} vulnerabilities found.</div>
-                    : <div className="vuln-grid">
-                        {filteredAndSorted.map((vuln, i) => <VulnCard key={i} vuln={vuln} index={i} />)}
-                      </div>
-                  }
-                </div>
+                    : <div className="vuln-grid">{filteredAndSorted.map((vuln, i) => <VulnCard key={i} vuln={vuln} />)}</div>}
+                </RevealCard>
               )}
 
               {results.previous_reviews?.length > 0 && (
-                <div className="results-section">
+                <RevealCard className="results-section" delay={0.1}>
                   <h2 className="section-title">
                     <History size={24} color="#d2a8ff" />
                     <span className="section-title-text">Previous AI Reviews ({results.previous_reviews.length})</span>
@@ -787,11 +805,11 @@ function ScannerApp({ apiFetch, onLogout }) {
                   {results.previous_reviews.map((review, i) => (
                     <PreviousReviewItem key={i} review={review} index={i} total={results.previous_reviews.length} />
                   ))}
-                </div>
+                </RevealCard>
               )}
 
               {results.results?.ai_review?.ai_output && (
-                <div className="results-section">
+                <RevealCard className="results-section" delay={0.15}>
                   <h2 className="section-title">
                     <Bot size={24} color="#d2a8ff" />
                     <span className="section-title-text">Claude AI Review — Latest</span>
@@ -799,11 +817,11 @@ function ScannerApp({ apiFetch, onLogout }) {
                   <div className="ai-review-card">
                     <AIMarkdown>{results.results.ai_review.ai_output}</AIMarkdown>
                   </div>
-                </div>
+                </RevealCard>
               )}
 
               {results.results?.ai_review?.status === 'error' && (
-                <div className="results-section">
+                <RevealCard className="results-section" delay={0.15}>
                   <h2 className="section-title">
                     <Bot size={24} color="#ff7b72" />
                     <span className="section-title-text">Claude AI Review Failed</span>
@@ -813,7 +831,7 @@ function ScannerApp({ apiFetch, onLogout }) {
                       Error: {results.results.ai_review.error || 'Unknown error occurred during AI review.'}
                     </div>
                   </div>
-                </div>
+                </RevealCard>
               )}
             </>
           )}
@@ -827,9 +845,22 @@ function ScannerApp({ apiFetch, onLogout }) {
 
 function App() {
   const [credentials, setCredentials] = useState(() => sessionStorage.getItem('auth') || null);
+  const [view, setView] = useState(() => new URLSearchParams(window.location.search).get('view') || 'scanner');
 
   const handleLogin  = (creds) => { sessionStorage.setItem('auth', creds); setCredentials(creds); };
-  const handleLogout = ()      => { sessionStorage.removeItem('auth');       setCredentials(null); };
+  const handleLogout = ()      => { sessionStorage.removeItem('auth');       setCredentials(null); setView('scanner'); };
+
+  const navigate = (newView) => {
+    setView(newView);
+    window.history.pushState({}, '', newView === 'scanner' ? window.location.pathname : `?view=${newView}`);
+  };
+
+  // Handle browser back/forward
+  useEffect(() => {
+    const onPop = () => setView(new URLSearchParams(window.location.search).get('view') || 'scanner');
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   const apiFetch = (path, options = {}) =>
     fetch(`${API_URL}${path}`, {
@@ -840,16 +871,19 @@ function App() {
       return res;
     });
 
-  const view = new URLSearchParams(window.location.search).get('view');
-
   return (
     <>
       <AmbientBackground />
       {!credentials
         ? <LoginPage onLogin={handleLogin} />
-        : view === 'history'  ? <HistoryView       apiFetch={apiFetch} onLogout={handleLogout} />
-        : view === 'packages' ? <PackageHistoryView apiFetch={apiFetch} onLogout={handleLogout} />
-        : <ScannerApp apiFetch={apiFetch} onLogout={handleLogout} />
+        : <>
+            <NavBar view={view} onNavigate={navigate} onLogout={handleLogout} />
+            <div className="with-nav" key={view}>
+              {view === 'history'  ? <HistoryView       apiFetch={apiFetch} />
+             : view === 'packages' ? <PackageHistoryView apiFetch={apiFetch} />
+             :                       <ScannerApp         apiFetch={apiFetch} />}
+            </div>
+          </>
       }
     </>
   );
