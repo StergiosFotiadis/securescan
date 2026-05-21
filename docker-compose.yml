@@ -12,6 +12,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /tmp:/tmp
+      - scan_history:/app/data
 
   frontend:
     build:
@@ -25,3 +26,6 @@ services:
       - backend
     environment:
       - VITE_API_URL=http://DEPLOY_HOST:8000
+
+volumes:
+  scan_history:

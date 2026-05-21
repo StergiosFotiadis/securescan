@@ -1,22 +1,61 @@
-import { useState } from 'react';
-import { 
-  ShieldCheck, 
-  Search, 
-  Box, 
-  FileCode2, 
-  Bot, 
-  CheckCircle2, 
-  XCircle, 
+import { useState, useRef } from 'react';
+import {
+  ShieldCheck,
+  Search,
+  Box,
+  FileCode2,
+  Bot,
+  CheckCircle2,
+  XCircle,
   Loader2,
   AlertTriangle,
   Code,
   Terminal,
-  Key
+  Key,
+  History,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 
 import './index.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+function formatTimestamp(iso) {
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      year: 'numeric', month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function PreviousReviewItem({ review, index, total }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="ai-review-card" style={{ marginBottom: '0.75rem', borderColor: 'rgba(210,168,255,0.2)' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '0.5rem',
+          background: 'none', border: 'none', cursor: 'pointer',
+          color: '#d2a8ff', width: '100%', padding: '0.75rem 1rem',
+          fontSize: '0.9rem', fontWeight: 600
+        }}
+      >
+        {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        Scan {index + 1} of {total} — {formatTimestamp(review.timestamp)}
+      </button>
+      {open && (
+        <div className="ai-content" style={{ padding: '0 1rem 1rem', borderTop: '1px solid rgba(210,168,255,0.15)' }}>
+          {review.ai_output}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function App() {
   const [repoUrl, setRepoUrl] = useState('');
@@ -294,11 +333,28 @@ function App() {
                 </div>
               )}
 
+              {results.previous_reviews?.length > 0 && (
+                <div className="results-section">
+                  <h2 className="section-title">
+                    <History size={24} color="#d2a8ff" />
+                    Previous AI Reviews ({results.previous_reviews.length})
+                  </h2>
+                  {results.previous_reviews.map((review, i) => (
+                    <PreviousReviewItem
+                      key={i}
+                      review={review}
+                      index={i}
+                      total={results.previous_reviews.length}
+                    />
+                  ))}
+                </div>
+              )}
+
               {results.results?.ai_review?.ai_output && (
                 <div className="results-section">
                   <h2 className="section-title">
                     <Bot size={24} color="#d2a8ff" />
-                    Claude AI Review
+                    Claude AI Review — Latest
                   </h2>
                   <div className="ai-review-card">
                     <div className="ai-content">

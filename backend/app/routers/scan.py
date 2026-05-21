@@ -4,7 +4,8 @@ import uuid
 import subprocess
 # pyrefly: ignore [missing-import]
 from fastapi import APIRouter, HTTPException
-from app.schemas.scan import ScanRequest, ScanResponse
+from app.schemas.scan import ScanRequest, ScanResponse, PreviousReview
+from app import storage
 from app.scanners import (
     detector,
     node_scanner,
@@ -67,6 +68,10 @@ def cleanup(repo_path: str) -> None:
 
 @router.post("/scan", response_model=ScanResponse)
 async def run_scan(request: ScanRequest):
+    # Load previous AI reviews for this repo before cloning
+    history = storage.get_history(request.repo_url)
+    previous_reviews = [PreviousReview(**entry) for entry in history]
+
     repo_path = clone_repo(request.repo_url, request.github_token)
 
     try:
@@ -82,7 +87,15 @@ async def run_scan(request: ScanRequest):
         # AI code review always runs — it is language-agnostic
         results["ai_review"] = await ai_reviewer.review(repo_path, project_types)
 
-        return ScanResponse(project_types=project_types, results=results)
+        # Persist the new AI review if it succeeded
+        if results["ai_review"].status == "done" and results["ai_review"].ai_output:
+            storage.append_review(request.repo_url, results["ai_review"].ai_output)
+
+        return ScanResponse(
+            project_types=project_types,
+            results=results,
+            previous_reviews=previous_reviews,
+        )
 
     finally:
         cleanup(repo_path)

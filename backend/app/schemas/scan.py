@@ -20,6 +20,11 @@ class ModuleResult(BaseModel):
     error: Optional[str] = None
     ai_output: Optional[str] = None
 
+class PreviousReview(BaseModel):
+    timestamp: str
+    ai_output: str
+
 class ScanResponse(BaseModel):
     project_types: List[str]
     results: Dict[str, ModuleResult]
+    previous_reviews: List[PreviousReview] = []
