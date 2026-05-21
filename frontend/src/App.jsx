@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ShieldCheck,
   Search,
@@ -15,7 +15,10 @@ import {
   History,
   ChevronDown,
   ChevronRight,
-  ExternalLink
+  ExternalLink,
+  User,
+  Lock,
+  LogOut
 } from 'lucide-react';
 
 import './index.css';
@@ -32,6 +35,123 @@ function formatTimestamp(iso) {
     return iso;
   }
 }
+
+// ─── Login Page ───────────────────────────────────────────────────────────────
+
+function LoginPage({ onLogin }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    const credentials = btoa(`${username}:${password}`);
+
+    try {
+      const res = await fetch(`${API_URL}/history`, {
+        headers: { 'Authorization': `Basic ${credentials}` }
+      });
+
+      if (res.status === 401) {
+        setError('Invalid username or password. Please try again.');
+      } else {
+        onLogin(credentials);
+      }
+    } catch {
+      setError('Connection failed. Check your network and try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="login-page">
+      <div className="login-card">
+        <div className="login-glow" />
+
+        <div className="login-header">
+          <div className="login-icon">
+            <ShieldCheck size={36} color="#58a6ff" />
+          </div>
+          <h1 className="logo login-title">SecureScan</h1>
+          <p className="subtitle" style={{ fontSize: '1rem' }}>
+            Sign in to access the security scanner
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="login-form">
+          <div className="input-wrapper">
+            <User className="input-icon" size={20} />
+            <input
+              type="text"
+              className="repo-input"
+              placeholder="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              disabled={loading}
+              required
+              autoComplete="username"
+              autoFocus
+            />
+          </div>
+
+          <div className="input-wrapper">
+            <Lock className="input-icon" size={20} />
+            <input
+              type={showPassword ? 'text' : 'password'}
+              className="repo-input"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={loading}
+              required
+              autoComplete="current-password"
+              style={{ paddingRight: '3.5rem' }}
+            />
+            <button
+              type="button"
+              className="show-password-btn"
+              onClick={() => setShowPassword(v => !v)}
+              tabIndex={-1}
+            >
+              {showPassword ? '🙈' : '👁'}
+            </button>
+          </div>
+
+          {error && (
+            <div className="login-error">
+              <AlertTriangle size={15} />
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            className={`scan-btn login-btn ${loading ? 'scanning' : ''}`}
+            disabled={loading || !username || !password}
+          >
+            {loading ? (
+              <><Loader2 size={20} className="loader" /> Signing in…</>
+            ) : (
+              <><ShieldCheck size={20} /> Sign In</>
+            )}
+          </button>
+        </form>
+
+        <p className="login-footer">
+          Protected by SecureScan Basic Auth
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── History Tab ──────────────────────────────────────────────────────────────
 
 function PreviousReviewItem({ review, index, total }) {
   const [open, setOpen] = useState(false);
@@ -58,8 +178,6 @@ function PreviousReviewItem({ review, index, total }) {
   );
 }
 
-// ─── History Tab View ────────────────────────────────────────────────────────
-
 function RepoHistoryBlock({ repoUrl, reviews }) {
   const [collapsed, setCollapsed] = useState(false);
   return (
@@ -74,12 +192,7 @@ function RepoHistoryBlock({ repoUrl, reviews }) {
       {!collapsed && (
         <div style={{ padding: '0 1.5rem 1.5rem' }}>
           {reviews.map((review, i) => (
-            <PreviousReviewItem
-              key={i}
-              review={review}
-              index={i}
-              total={reviews.length}
-            />
+            <PreviousReviewItem key={i} review={review} index={i} total={reviews.length} />
           ))}
         </div>
       )}
@@ -87,13 +200,13 @@ function RepoHistoryBlock({ repoUrl, reviews }) {
   );
 }
 
-function HistoryView() {
+function HistoryView({ apiFetch, onLogout }) {
   const [repos, setRepos] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
 
   useEffect(() => {
-    fetch(`${API_URL}/history`)
+    apiFetch('/history')
       .then(r => {
         if (!r.ok) throw new Error('Failed to load history');
         return r.json();
@@ -110,6 +223,9 @@ function HistoryView() {
           AI Review History
         </h1>
         <p className="subtitle">All stored AI security reviews across every scanned repository</p>
+        <button className="logout-btn" onClick={onLogout}>
+          <LogOut size={15} /> Sign Out
+        </button>
       </header>
 
       {loading && (
@@ -154,7 +270,7 @@ function HistoryView() {
 
 // ─── Main Scanner App ────────────────────────────────────────────────────────
 
-function ScannerApp() {
+function ScannerApp({ apiFetch, onLogout }) {
   const [repoUrl, setRepoUrl] = useState('');
   const [githubToken, setGithubToken] = useState('');
   const [isScanning, setIsScanning] = useState(false);
@@ -180,21 +296,13 @@ function ScannerApp() {
     setIsScanning(true);
     setResults(null);
     setError(null);
-
-    setScanStatus({
-      detect: 'scanning',
-      scanners: 'idle',
-      ai: 'idle'
-    });
+    setScanStatus({ detect: 'scanning', scanners: 'idle', ai: 'idle' });
 
     try {
-      const response = await fetch(`${API_URL}/scan`, {
+      const response = await apiFetch('/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          repo_url: repoUrl,
-          github_token: githubToken
-        })
+        body: JSON.stringify({ repo_url: repoUrl, github_token: githubToken })
       });
 
       if (!response.ok) {
@@ -206,12 +314,7 @@ function ScannerApp() {
 
       const data = await response.json();
       setResults(data);
-
-      setScanStatus({
-        detect: 'done',
-        scanners: 'done',
-        ai: 'done'
-      });
+      setScanStatus({ detect: 'done', scanners: 'done', ai: 'done' });
 
     } catch (err) {
       setError(err.message);
@@ -222,7 +325,7 @@ function ScannerApp() {
   };
 
   const getStatusIcon = (status) => {
-    switch(status) {
+    switch (status) {
       case 'idle': return <Box className="w-6 h-6" />;
       case 'scanning': return <Loader2 className="w-6 h-6 loader" />;
       case 'done': return <CheckCircle2 className="w-6 h-6" />;
@@ -262,10 +365,16 @@ function ScannerApp() {
         </h1>
         <p className="subtitle">Universal Security Scanner for GitHub Repositories</p>
 
-        <button className="history-tab-btn" onClick={openHistoryTab}>
-          <History size={18} />
-          AI Review History
-          <ExternalLink size={14} style={{ opacity: 0.6 }} />
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', marginTop: '1.5rem' }}>
+          <button className="history-tab-btn" onClick={openHistoryTab}>
+            <History size={18} />
+            AI Review History
+            <ExternalLink size={14} style={{ opacity: 0.6 }} />
+          </button>
+        </div>
+
+        <button className="logout-btn" onClick={onLogout}>
+          <LogOut size={15} /> Sign Out
         </button>
       </header>
 
@@ -303,15 +412,15 @@ function ScannerApp() {
       </form>
 
       {error && (
-        <div className="dashboard" style={{marginBottom: '2rem'}}>
-          <div className="status-card" style={{borderColor: 'rgba(255,123,114,0.3)'}}>
-             <div className="status-icon-wrapper" style={{color: '#ff7b72', background: 'rgba(255,123,114,0.1)'}}>
-               <AlertTriangle size={24} />
-             </div>
-             <div className="status-info">
-               <h3>Error Occurred</h3>
-               <p style={{color: '#ff7b72'}}>{error}</p>
-             </div>
+        <div className="dashboard" style={{ marginBottom: '2rem' }}>
+          <div className="status-card" style={{ borderColor: 'rgba(255,123,114,0.3)' }}>
+            <div className="status-icon-wrapper" style={{ color: '#ff7b72', background: 'rgba(255,123,114,0.1)' }}>
+              <AlertTriangle size={24} />
+            </div>
+            <div className="status-info">
+              <h3>Error Occurred</h3>
+              <p style={{ color: '#ff7b72' }}>{error}</p>
+            </div>
           </div>
         </div>
       )}
@@ -334,11 +443,11 @@ function ScannerApp() {
               const scannerResult = results.results?.[type];
               return (
                 <div key={type} className="status-card">
-                  <div className={`status-icon-wrapper status-done`}>
+                  <div className="status-icon-wrapper status-done">
                     <Terminal className="w-6 h-6" />
                   </div>
                   <div className="status-info">
-                    <h3 style={{textTransform: 'capitalize'}}>{type} Scanner</h3>
+                    <h3 style={{ textTransform: 'capitalize' }}>{type} Scanner</h3>
                     <p>{scannerResult?.vulnerabilities?.length || 0} Issues Found</p>
                   </div>
                 </div>
@@ -346,15 +455,15 @@ function ScannerApp() {
             })}
 
             {isScanning && scanStatus.detect === 'done' && (
-               <div className="status-card">
-                  <div className={`status-icon-wrapper status-scanning`}>
-                    <Loader2 className="w-6 h-6 loader" />
-                  </div>
-                  <div className="status-info">
-                    <h3>Deep Scan</h3>
-                    <p>Auditing dependencies...</p>
-                  </div>
+              <div className="status-card">
+                <div className="status-icon-wrapper status-scanning">
+                  <Loader2 className="w-6 h-6 loader" />
                 </div>
+                <div className="status-info">
+                  <h3>Deep Scan</h3>
+                  <p>Auditing dependencies...</p>
+                </div>
+              </div>
             )}
 
             <div className="status-card">
@@ -416,15 +525,14 @@ function ScannerApp() {
                           </span>
                         </div>
                         <p className="vuln-desc">{vuln.description}</p>
-                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem'}}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
                           {vuln.cve_id ? (
                             <a href={`https://nvd.nist.gov/vuln/detail/${vuln.cve_id}`} target="_blank" rel="noopener noreferrer" className="vuln-cve">
                               {vuln.cve_id}
                             </a>
-                          ) : <span className="vuln-cve" style={{opacity: 0.5}}>No CVE</span>}
-
-                          <span style={{fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px'}}>
-                             Source: {vuln.scanner_type || 'Unknown'}
+                          ) : <span className="vuln-cve" style={{ opacity: 0.5 }}>No CVE</span>}
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                            Source: {vuln.scanner_type || 'Unknown'}
                           </span>
                         </div>
                       </div>
@@ -440,12 +548,7 @@ function ScannerApp() {
                     Previous AI Reviews ({results.previous_reviews.length})
                   </h2>
                   {results.previous_reviews.map((review, i) => (
-                    <PreviousReviewItem
-                      key={i}
-                      review={review}
-                      index={i}
-                      total={results.previous_reviews.length}
-                    />
+                    <PreviousReviewItem key={i} review={review} index={i} total={results.previous_reviews.length} />
                   ))}
                 </div>
               )}
@@ -488,10 +591,45 @@ function ScannerApp() {
 // ─── Root ────────────────────────────────────────────────────────────────────
 
 function App() {
+  const [credentials, setCredentials] = useState(
+    () => sessionStorage.getItem('auth') || null
+  );
+
+  const handleLogin = (creds) => {
+    sessionStorage.setItem('auth', creds);
+    setCredentials(creds);
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('auth');
+    setCredentials(null);
+  };
+
+  const apiFetch = (path, options = {}) =>
+    fetch(`${API_URL}${path}`, {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        'Authorization': `Basic ${credentials}`,
+      }
+    }).then(res => {
+      if (res.status === 401) {
+        handleLogout();
+        throw new Error('Session expired. Please sign in again.');
+      }
+      return res;
+    });
+
+  if (!credentials) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
   const params = new URLSearchParams(window.location.search);
   const isHistoryView = params.get('view') === 'history';
 
-  return isHistoryView ? <HistoryView /> : <ScannerApp />;
+  return isHistoryView
+    ? <HistoryView apiFetch={apiFetch} onLogout={handleLogout} />
+    : <ScannerApp apiFetch={apiFetch} onLogout={handleLogout} />;
 }
 
 export default App;
