@@ -62,6 +62,13 @@ body::before {
   z-index: 1;
 }
 
+/* ── Custom Scrollbar ─────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(88, 166, 255, 0.22); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(88, 166, 255, 0.45); }
+* { scrollbar-width: thin; scrollbar-color: rgba(88, 166, 255, 0.22) transparent; }
+
 .app-container {
   max-width: 1200px;
   margin: 0 auto;
@@ -229,7 +236,8 @@ header {
 }
 
 .status-card {
-  background: var(--bg-glass);
+  --card-bg: var(--bg-glass);
+  background: radial-gradient(circle at var(--mx, -9999px) var(--my, -9999px), rgba(255,255,255,0.055) 0%, transparent 58%), var(--card-bg);
   border: 1px solid var(--border-glass);
   border-radius: 24px;
   padding: 1.75rem;
@@ -255,9 +263,9 @@ header {
 }
 
 .status-card:hover {
+  --card-bg: rgba(88,166,255,0.04);
   border-color: rgba(88,166,255,0.35);
   transform: translateY(-6px);
-  background: rgba(88,166,255,0.04);
   box-shadow: var(--card-shadow), 0 0 35px rgba(88,166,255,0.1);
 }
 
@@ -315,7 +323,8 @@ header {
 .metric-card {
   flex: 1;
   min-width: 200px;
-  background: var(--bg-glass);
+  --card-bg: var(--bg-glass);
+  background: radial-gradient(circle at var(--mx, -9999px) var(--my, -9999px), rgba(255,255,255,0.055) 0%, transparent 58%), var(--card-bg);
   border: 1px solid var(--border-glass);
   border-radius: 24px;
   padding: 2rem;
@@ -328,10 +337,10 @@ header {
 }
 
 .metric-card:hover {
+  --card-bg: rgba(88,166,255,0.03);
   border-color: rgba(88,166,255,0.5);
   transform: translateY(-5px);
   box-shadow: var(--card-shadow), 0 0 30px rgba(88,166,255,0.12);
-  background: rgba(88,166,255,0.03);
 }
 
 .metric-value {
@@ -377,20 +386,24 @@ header {
 }
 
 .vuln-card {
-  background: var(--bg-glass);
+  --card-bg: var(--bg-glass);
+  background: radial-gradient(circle at var(--mx, -9999px) var(--my, -9999px), rgba(255,255,255,0.07) 0%, transparent 55%), var(--card-bg);
   border: 1px solid var(--border-glass);
   border-radius: 20px;
   padding: 1.75rem;
   position: relative;
   overflow: hidden;
-  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: border-color 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+              background 0.3s ease,
+              transform 0.09s linear;
   box-shadow: var(--card-shadow);
   backdrop-filter: var(--glass-blur);
+  will-change: transform;
 }
 
 .vuln-card:hover {
-  background: rgba(255,255,255,0.06);
-  transform: scale(1.02) translateY(-2px);
+  --card-bg: rgba(255,255,255,0.06);
 }
 
 .vuln-critical:hover { border-color: rgba(255,123,114,0.5); box-shadow: var(--card-shadow), 0 0 30px rgba(255,123,114,0.2); }
@@ -683,17 +696,18 @@ header {
 }
 
 .repo-history-block {
-  background: var(--bg-glass);
+  --card-bg: var(--bg-glass);
+  background: radial-gradient(circle at var(--mx, -9999px) var(--my, -9999px), rgba(255,255,255,0.04) 0%, transparent 60%), var(--card-bg);
   border: 1px solid rgba(210, 168, 255, 0.2);
   border-radius: 24px;
   overflow: hidden;
   backdrop-filter: var(--glass-blur);
   box-shadow: var(--card-shadow);
-  transition: border-color 0.3s ease;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .repo-history-block:hover {
-  border-color: rgba(210, 168, 255, 0.4);
+  animation: gradientBorderShift 3s linear infinite;
 }
 
 .repo-history-header {
@@ -1709,6 +1723,48 @@ header {
   background: rgba(255, 123, 114, 0.14);
   border-color: rgba(255, 123, 114, 0.35);
   opacity: 1;
+}
+
+/* ── Scan Progress Bar ───────────────────────────────────────────────────── */
+.scan-progress-bar {
+  position: fixed;
+  top: 64px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 200;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.scan-progress-bar.scan-progress-active {
+  opacity: 1;
+}
+
+.scan-progress-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -45%;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--primary), var(--accent), transparent);
+  animation: progressSlide 1.6s ease-in-out infinite;
+}
+
+@keyframes progressSlide {
+  0%   { left: -45%; }
+  100% { left: 105%; }
+}
+
+/* ── Animated Gradient Border on Repo Blocks ─────────────────────────────── */
+@keyframes gradientBorderShift {
+  0%   { border-color: rgba(88,166,255,0.4);  box-shadow: var(--card-shadow), 0 0 22px rgba(88,166,255,0.12); }
+  33%  { border-color: rgba(210,168,255,0.4); box-shadow: var(--card-shadow), 0 0 22px rgba(210,168,255,0.12); }
+  66%  { border-color: rgba(63,185,80,0.35);  box-shadow: var(--card-shadow), 0 0 22px rgba(63,185,80,0.1); }
+  100% { border-color: rgba(88,166,255,0.4);  box-shadow: var(--card-shadow), 0 0 22px rgba(88,166,255,0.12); }
 }
 
 /* Responsive adjustments */

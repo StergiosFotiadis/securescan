@@ -208,6 +208,12 @@ function VulnFilterBar({ allVulns, filterSeverity, setFilterSeverity, sortBy, se
   );
 }
 
+// ─── Scan Progress Bar ───────────────────────────────────────────────────────
+
+function ScanProgressBar({ active }) {
+  return <div className={`scan-progress-bar${active ? ' scan-progress-active' : ''}`} />;
+}
+
 // ─── Navigation Bar ───────────────────────────────────────────────────────────
 
 function NavBar({ view, onNavigate, onLogout }) {
@@ -694,6 +700,7 @@ function ScannerApp({ apiFetch }) {
   return (
     <div className="app-container">
       {scanComplete && <div className="scan-complete-overlay" />}
+      <ScanProgressBar active={isScanning} />
 
       <header>
         <h1 className="logo"><ShieldCheck size={40} color="#58a6ff" />SecureScan</h1>
@@ -860,6 +867,38 @@ function App() {
     const onPop = () => setView(new URLSearchParams(window.location.search).get('view') || 'scanner');
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  // Cursor spotlight + 3D tilt for cards (event delegation — no per-card hooks needed)
+  useEffect(() => {
+    const onMove = (e) => {
+      const card = e.target.closest('.vuln-card, .metric-card, .status-card, .repo-history-block');
+      if (!card) return;
+      const r = card.getBoundingClientRect();
+      const xPct = (e.clientX - r.left) / r.width;
+      const yPct = (e.clientY - r.top) / r.height;
+      card.style.setProperty('--mx', `${(xPct * 100).toFixed(1)}%`);
+      card.style.setProperty('--my', `${(yPct * 100).toFixed(1)}%`);
+      if (card.classList.contains('vuln-card')) {
+        const rotX = ((yPct - 0.5) * -13).toFixed(2);
+        const rotY = ((xPct - 0.5) * 13).toFixed(2);
+        card.style.transform = `perspective(700px) rotateX(${rotX}deg) rotateY(${rotY}deg) scale(1.025) translateY(-2px)`;
+      }
+    };
+    const onOut = (e) => {
+      const card = e.target.closest('.vuln-card, .metric-card, .status-card, .repo-history-block');
+      if (card && !card.contains(e.relatedTarget)) {
+        card.style.removeProperty('--mx');
+        card.style.removeProperty('--my');
+        if (card.classList.contains('vuln-card')) card.style.transform = '';
+      }
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseout', onOut);
+    return () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseout', onOut);
+    };
   }, []);
 
   const apiFetch = (path, options = {}) =>
