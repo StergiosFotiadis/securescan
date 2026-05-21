@@ -26,6 +26,7 @@ RUN npm run build
 
 # Production stage
 FROM nginx:stable-alpine
+RUN apk add --no-cache openssl
 COPY --from=build-stage /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY entrypoint.sh /entrypoint.sh
