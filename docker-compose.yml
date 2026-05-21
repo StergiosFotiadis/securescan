@@ -5,8 +5,6 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
     environment:
       - ANTHROPIC_API_KEY
     volumes:
@@ -19,13 +17,14 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - VITE_API_URL=http://DEPLOY_HOST:8000
+        - VITE_API_URL=/api
     ports:
       - "8082:80"
     depends_on:
       - backend
     environment:
-      - VITE_API_URL=http://DEPLOY_HOST:8000
+      - BASIC_AUTH_USER
+      - BASIC_AUTH_PASSWORD
 
 volumes:
   scan_history:
