@@ -1084,14 +1084,15 @@ header {
 
 /* Page enter transition — triggered by React key change */
 @keyframes pageFadeIn {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(22px) scale(0.975); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
 }
 
 .with-nav {
   padding-top: 64px;
   min-height: 100vh;
-  animation: pageFadeIn 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: pageFadeIn 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: top center;
 }
 
 /* ── Card Shine Sweep ─────────────────────────────────────────────────────── */
