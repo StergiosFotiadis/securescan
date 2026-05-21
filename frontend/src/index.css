@@ -1021,7 +1021,10 @@ header {
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   gap: 1rem;
   animation: fadeInDown 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
 }
+
+.nav-hidden { transform: translateY(-100%); }
 
 .nav-logo {
   display: flex;
@@ -1805,6 +1808,93 @@ header {
   background: rgba(255, 123, 114, 0.14);
   border-color: rgba(255, 123, 114, 0.35);
   opacity: 1;
+}
+
+/* ── Severity Donut Chart ────────────────────────────────────────────────── */
+.donut-card {
+  flex: none !important;
+  width: 120px;
+  min-width: unset !important;
+  padding: 1rem !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
+.donut-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.donut-center {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.1;
+  pointer-events: none;
+}
+
+.donut-total {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--text-main);
+  letter-spacing: -1px;
+}
+
+.donut-label {
+  font-size: 0.58rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+}
+
+/* ── Sparkline ───────────────────────────────────────────────────────────── */
+.sparkline { flex-shrink: 0; }
+
+/* ── Re-scan Button ──────────────────────────────────────────────────────── */
+.repo-rescan-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 8px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid rgba(88, 166, 255, 0.2);
+  background: rgba(88, 166, 255, 0.06);
+  color: var(--primary);
+  transition: all 0.2s ease;
+  opacity: 0;
+  white-space: nowrap;
+}
+
+.repo-history-block:hover .repo-rescan-btn { opacity: 1; }
+.repo-rescan-btn:hover {
+  background: rgba(88, 166, 255, 0.14);
+  border-color: rgba(88, 166, 255, 0.4);
+  box-shadow: 0 0 12px rgba(88, 166, 255, 0.15);
+}
+
+/* ── Scan Duration Badge ─────────────────────────────────────────────────── */
+.scan-duration-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--success);
+  background: rgba(63, 185, 80, 0.08);
+  border: 1px solid rgba(63, 185, 80, 0.2);
+  border-radius: 10px;
+  padding: 0.3rem 0.8rem;
+  margin-bottom: 1.5rem;
+  animation: fadeIn 0.4s ease;
 }
 
 /* ── Toast Notification ──────────────────────────────────────────────────── */

@@ -236,6 +236,76 @@ function VulnFilterBar({ allVulns, filterSeverity, setFilterSeverity, sortBy, se
   );
 }
 
+// ─── Sparkline ───────────────────────────────────────────────────────────────
+
+function Sparkline({ scans, width = 88, height = 34 }) {
+  const values = scans.map(s => s.vulnerabilities.length);
+  if (values.length < 2) return null;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const pad = 4;
+  const pts = values.map((v, i) => {
+    const x = ((i / (values.length - 1)) * (width - pad * 2) + pad).toFixed(1);
+    const y = (height - pad - ((v - min) / range) * (height - pad * 2)).toFixed(1);
+    return `${x},${y}`;
+  });
+  const last = values[values.length - 1];
+  const prev = values[values.length - 2];
+  const color = last > prev ? '#ff7b72' : last < prev ? '#3fb950' : '#58a6ff';
+  const [lx, ly] = pts[pts.length - 1].split(',');
+  return (
+    <svg width={width} height={height} className="sparkline" style={{ overflow: 'visible' }}>
+      <polyline points={pts.join(' ')} fill="none" stroke={color}
+        strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" opacity="0.72" />
+      <circle cx={lx} cy={ly} r="3" fill={color} />
+    </svg>
+  );
+}
+
+// ─── Severity Donut ───────────────────────────────────────────────────────────
+
+function SeverityDonut({ critical, high, medium, low }) {
+  const total = critical + high + medium + low;
+  const cx = 40, cy = 40, r = 30, sw = 9;
+  const circ = 2 * Math.PI * r;
+  const segs = [
+    { count: critical, color: '#ff7b72' },
+    { count: high,     color: '#ffa657' },
+    { count: medium,   color: '#d2a8ff' },
+    { count: low,      color: '#a5d6ff' },
+  ];
+  let cumAngle = 0;
+  return (
+    <div className="metric-card donut-card">
+      <div className="donut-wrap">
+        <svg width={80} height={80} viewBox="0 0 80 80">
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={sw} />
+          {total > 0 && segs.map(({ count, color }) => {
+            if (count === 0) { cumAngle += (count / total) * 360; return null; }
+            const dash = (count / total) * circ;
+            const el = (
+              <circle key={color} cx={cx} cy={cy} r={r} fill="none"
+                stroke={color} strokeWidth={sw}
+                strokeDasharray={`${dash.toFixed(2)} ${(circ - dash).toFixed(2)}`}
+                strokeDashoffset={(circ / 4).toFixed(2)}
+                transform={`rotate(${cumAngle}, ${cx}, ${cy})`}
+              />
+            );
+            cumAngle += (count / total) * 360;
+            return el;
+          })}
+        </svg>
+        <div className="donut-center">
+          {total === 0
+            ? <><span className="donut-total" style={{ color: 'var(--success)', fontSize: '1.1rem' }}>✓</span><span className="donut-label">clean</span></>
+            : <><span className="donut-total">{total}</span><span className="donut-label">issues</span></>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Toast ───────────────────────────────────────────────────────────────────
 
 function Toast({ message }) {
@@ -256,14 +326,14 @@ function ScanProgressBar({ active }) {
 
 // ─── Navigation Bar ───────────────────────────────────────────────────────────
 
-function NavBar({ view, onNavigate, onLogout }) {
+function NavBar({ view, onNavigate, onLogout, hidden }) {
   const tabs = [
     { id: 'scanner',  label: 'Scanner',         icon: <ShieldCheck size={15} />, cls: 'nav-tab-scanner' },
     { id: 'history',  label: 'AI History',       icon: <History size={15} />,     cls: 'nav-tab-history' },
     { id: 'packages', label: 'Package History',  icon: <Package size={15} />,     cls: 'nav-tab-packages' },
   ];
   return (
-    <nav className="nav-bar">
+    <nav className={`nav-bar${hidden ? ' nav-hidden' : ''}`}>
       <div className="nav-logo">
         <ShieldCheck size={18} color="#58a6ff" />
         <span>SecureScan</span>
@@ -369,7 +439,7 @@ function PreviousReviewItem({ review, index, total }) {
   );
 }
 
-function RepoHistoryBlock({ repoUrl, reviews, onDelete, revealDelay }) {
+function RepoHistoryBlock({ repoUrl, reviews, onDelete, revealDelay, onReScan }) {
   const [collapsed, setCollapsed] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -392,6 +462,11 @@ function RepoHistoryBlock({ repoUrl, reviews, onDelete, revealDelay }) {
             <span className="repo-history-count">{reviews.length} scan{reviews.length !== 1 ? 's' : ''}</span>
           </button>
           <div className="repo-delete-area">
+            {onReScan && !confirmDelete && (
+              <button className="repo-rescan-btn" onClick={(e) => { e.stopPropagation(); onReScan(repoUrl); }} title="Scan again">
+                <Search size={12} />Scan again
+              </button>
+            )}
             {confirmDelete ? (
               <>
                 <span className="repo-delete-confirm-text">Delete all scans?</span>
@@ -419,7 +494,7 @@ function RepoHistoryBlock({ repoUrl, reviews, onDelete, revealDelay }) {
   );
 }
 
-function HistoryView({ apiFetch }) {
+function HistoryView({ apiFetch, onReScan }) {
   const [repos, setRepos] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
@@ -474,7 +549,7 @@ function HistoryView({ apiFetch }) {
             : <div className="history-list">
                 {filtered.map((item, i) => (
                   <RepoHistoryBlock key={item.repo_url} repoUrl={item.repo_url} reviews={item.reviews}
-                    onDelete={handleDelete} revealDelay={i * 0.07} />
+                    onDelete={handleDelete} revealDelay={i * 0.07} onReScan={onReScan} />
                 ))}
               </div>}
         </>
@@ -580,7 +655,7 @@ function ScanEntry({ scan, delta, isLatest }) {
   );
 }
 
-function RepoVulnBlock({ repoUrl, scans, onDelete, revealDelay }) {
+function RepoVulnBlock({ repoUrl, scans, onDelete, revealDelay, onReScan }) {
   const [collapsed, setCollapsed] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -603,10 +678,16 @@ function RepoVulnBlock({ repoUrl, scans, onDelete, revealDelay }) {
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
               <span className="repo-history-count">{scans.length} scan{scans.length !== 1 ? 's' : ''}</span>
+              <Sparkline scans={scans} />
               <TrendBadge scans={scans} />
             </span>
           </button>
           <div className="repo-delete-area">
+            {onReScan && !confirmDelete && (
+              <button className="repo-rescan-btn" onClick={(e) => { e.stopPropagation(); onReScan(repoUrl); }} title="Scan again">
+                <Search size={12} />Scan again
+              </button>
+            )}
             {confirmDelete ? (
               <>
                 <span className="repo-delete-confirm-text">Delete all scans?</span>
@@ -636,7 +717,7 @@ function RepoVulnBlock({ repoUrl, scans, onDelete, revealDelay }) {
   );
 }
 
-function PackageHistoryView({ apiFetch }) {
+function PackageHistoryView({ apiFetch, onReScan }) {
   const [repos, setRepos] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
@@ -691,7 +772,7 @@ function PackageHistoryView({ apiFetch }) {
             : <div className="history-list">
                 {filtered.map((item, i) => (
                   <RepoVulnBlock key={item.repo_url} repoUrl={item.repo_url} scans={item.scans}
-                    onDelete={handleDelete} revealDelay={i * 0.07} />
+                    onDelete={handleDelete} revealDelay={i * 0.07} onReScan={onReScan} />
                 ))}
               </div>}
         </>
@@ -712,8 +793,10 @@ function ScannerApp({ apiFetch }) {
   const [sortBy, setSortBy] = useState('severity');
   const [scanStatus, setScanStatus] = useState({ detect: 'idle', scanners: 'idle', ai: 'idle' });
   const [scanComplete, setScanComplete] = useState(false);
+  const [scanDuration, setScanDuration] = useState(null);
   const [formSticky, setFormSticky] = useState(false);
   const sentinelRef = useRef(null);
+  const scanStartRef = useRef(null);
 
   useEffect(() => {
     const el = sentinelRef.current;
@@ -724,6 +807,17 @@ function ScannerApp({ apiFetch }) {
     );
     obs.observe(el);
     return () => obs.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const handler = () => {
+      setResults(null);
+      setError(null);
+      setScanStatus({ detect: 'idle', scanners: 'idle', ai: 'idle' });
+      setScanDuration(null);
+    };
+    window.addEventListener('app:escape', handler);
+    return () => window.removeEventListener('app:escape', handler);
   }, []);
 
   const handleRipple = (e) => {
@@ -747,6 +841,8 @@ function ScannerApp({ apiFetch }) {
     setFilterSeverity('all');
     setSortBy('severity');
     setScanComplete(false);
+    setScanDuration(null);
+    scanStartRef.current = Date.now();
     setScanStatus({ detect: 'scanning', scanners: 'idle', ai: 'idle' });
     try {
       const response = await apiFetch('/scan', {
@@ -761,6 +857,7 @@ function ScannerApp({ apiFetch }) {
       setResults(data);
       setScanStatus({ detect: 'done', scanners: 'done', ai: 'done' });
       setScanComplete(true);
+      setScanDuration(((Date.now() - scanStartRef.current) / 1000).toFixed(1));
       setTimeout(() => setScanComplete(false), 1800);
       // Celebrate a clean result
       const vulnCount = Object.keys(data.results || {})
@@ -807,6 +904,7 @@ function ScannerApp({ apiFetch }) {
     critical: allVulns.filter(v => v.severity?.toLowerCase() === 'critical').length,
     high:     allVulns.filter(v => v.severity?.toLowerCase() === 'high').length,
     medium:   allVulns.filter(v => v.severity?.toLowerCase() === 'medium').length,
+    low:      allVulns.filter(v => v.severity?.toLowerCase() === 'low').length,
   };
 
   return (
@@ -889,7 +987,13 @@ function ScannerApp({ apiFetch }) {
 
           {results && (
             <>
+              {scanDuration && (
+                <div className="scan-duration-badge">
+                  <CheckCircle2 size={13} /> Completed in {scanDuration}s
+                </div>
+              )}
               <div className="metrics-bar">
+                <SeverityDonut critical={metrics.critical} high={metrics.high} medium={metrics.medium} low={metrics.low} />
                 {[
                   { val: metrics.total,    label: 'Total Issues', cls: 'value-total' },
                   { val: metrics.critical, label: 'Critical',     cls: 'value-critical' },
@@ -968,7 +1072,10 @@ function App() {
   const [credentials, setCredentials] = useState(() => sessionStorage.getItem('auth') || null);
   const [view, setView] = useState(() => new URLSearchParams(window.location.search).get('view') || 'scanner');
   const [toastMsg, setToastMsg] = useState(null);
+  const [navHidden, setNavHidden] = useState(false);
   const toastTimer = useRef(null);
+  const lastScrollY = useRef(0);
+  const navigateRef = useRef(null);
 
   const handleLogin  = (creds) => { sessionStorage.setItem('auth', creds); setCredentials(creds); };
   const handleLogout = ()      => { sessionStorage.removeItem('auth');       setCredentials(null); setView('scanner'); };
@@ -976,6 +1083,12 @@ function App() {
   const navigate = (newView) => {
     setView(newView);
     window.history.pushState({}, '', newView === 'scanner' ? window.location.pathname : `?view=${newView}`);
+  };
+  navigateRef.current = navigate;
+
+  const reScan = (url) => {
+    localStorage.setItem('last_repo_url', url);
+    navigate('scanner');
   };
 
   // Handle browser back/forward
@@ -994,6 +1107,38 @@ function App() {
     };
     window.addEventListener('app:toast', handler);
     return () => window.removeEventListener('app:toast', handler);
+  }, []);
+
+  // Hide nav on scroll down, reveal on scroll up
+  useEffect(() => {
+    const onScroll = () => {
+      const y = window.scrollY;
+      const delta = y - lastScrollY.current;
+      if (delta > 10 && y > 100) setNavHidden(true);
+      else if (delta < -10) setNavHidden(false);
+      lastScrollY.current = y;
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        navigateRef.current('scanner');
+        setTimeout(() => document.querySelector('.search-container .repo-input')?.focus(), 80);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        document.querySelector('.search-container')?.requestSubmit?.();
+      }
+      if (e.key === 'Escape') {
+        window.dispatchEvent(new CustomEvent('app:escape'));
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
   }, []);
 
   // Cursor spotlight + 3D tilt for cards (event delegation — no per-card hooks needed)
@@ -1044,10 +1189,10 @@ function App() {
       {!credentials
         ? <LoginPage onLogin={handleLogin} />
         : <>
-            <NavBar view={view} onNavigate={navigate} onLogout={handleLogout} />
+            <NavBar view={view} onNavigate={navigate} onLogout={handleLogout} hidden={navHidden} />
             <div className="with-nav" key={view}>
-              {view === 'history'  ? <HistoryView       apiFetch={apiFetch} />
-             : view === 'packages' ? <PackageHistoryView apiFetch={apiFetch} />
+              {view === 'history'  ? <HistoryView       apiFetch={apiFetch} onReScan={reScan} />
+             : view === 'packages' ? <PackageHistoryView apiFetch={apiFetch} onReScan={reScan} />
              :                       <ScannerApp         apiFetch={apiFetch} />}
             </div>
           </>
