@@ -2019,6 +2019,63 @@ header {
   100% { border-color: rgba(88,166,255,0.4);  box-shadow: var(--card-shadow), 0 0 22px rgba(88,166,255,0.12); }
 }
 
+/* ── Export Bar ──────────────────────────────────────────────────────────── */
+.export-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.export-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-right: 0.2rem;
+}
+
+.export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  padding: 0.38rem 0.85rem;
+  border-radius: 6px;
+  border: 1px solid rgba(88,166,255,0.32);
+  background: rgba(88,166,255,0.07);
+  color: #58a6ff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, opacity 0.2s;
+  font-family: inherit;
+  letter-spacing: 0.3px;
+}
+
+.export-btn:hover {
+  background: rgba(88,166,255,0.16);
+  border-color: rgba(88,166,255,0.55);
+}
+
+.export-btn-csv {
+  border-color: rgba(63,185,80,0.32);
+  background: rgba(63,185,80,0.07);
+  color: #3fb950;
+}
+
+.export-btn-csv:hover {
+  background: rgba(63,185,80,0.16);
+  border-color: rgba(63,185,80,0.55);
+}
+
+.export-btn-disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .logo { font-size: 2.5rem; }
