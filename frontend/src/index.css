@@ -1887,32 +1887,82 @@ header {
   animation: fadeIn 0.4s ease;
 }
 
-/* ── Toast Notification ──────────────────────────────────────────────────── */
-.toast {
+/* ── Toast Stack ──────────────────────────────────────────────────────────── */
+.toast-stack {
   position: fixed;
   bottom: 2rem;
   right: 2rem;
   z-index: 1000;
   display: flex;
+  flex-direction: column-reverse;
+  gap: 0.5rem;
+  pointer-events: none;
+  align-items: flex-end;
+}
+
+.toast {
+  position: relative;
+  overflow: hidden;
+  display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.65rem 1.1rem;
+  padding: 0.7rem 1.1rem 1rem;
   background: rgba(10, 14, 20, 0.96);
-  border: 1px solid rgba(63, 185, 80, 0.35);
   border-radius: 14px;
-  color: var(--success);
   font-size: 0.86rem;
   font-weight: 600;
   backdrop-filter: blur(16px);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 20px rgba(63,185,80,0.08);
-  animation: toastIn 0.3s cubic-bezier(0.22, 1, 0.36, 1);
-  pointer-events: none;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  animation: toastIn 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: auto;
   white-space: nowrap;
+  max-width: 420px;
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+.toast:hover { box-shadow: 0 14px 44px rgba(0,0,0,0.75); transform: scale(1.015); }
+
+.toast-success { border: 1px solid rgba(63,185,80,0.4);   color: #3fb950; }
+.toast-error   { border: 1px solid rgba(255,123,114,0.4); color: #ff7b72; }
+.toast-warning { border: 1px solid rgba(255,166,87,0.4);  color: #ffa657; }
+.toast-info    { border: 1px solid rgba(88,166,255,0.4);  color: #58a6ff; }
+
+.toast-message { flex: 1; color: #e6edf3; font-weight: 500; }
+
+.toast-dismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: rgba(230,237,243,0.35);
+  font-size: 0.78rem;
+  padding: 0.1rem 0.2rem;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color 0.15s;
+  margin-left: 0.4rem;
+}
+.toast-dismiss:hover { color: rgba(230,237,243,0.9); }
+
+.toast-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  width: 100%;
+  background: currentColor;
+  opacity: 0.45;
+  border-radius: 0 0 14px 14px;
+  animation: toastBar linear forwards;
+}
+.toast-bar-paused { animation-play-state: paused; }
+
+@keyframes toastBar {
+  from { width: 100%; }
+  to   { width: 0%; }
 }
 
 @keyframes toastIn {
-  from { opacity: 0; transform: translateY(10px) scale(0.95); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+  from { opacity: 0; transform: translateX(28px) scale(0.93); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
 }
 
 /* ── History Search Bar ──────────────────────────────────────────────────── */

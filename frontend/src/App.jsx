@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
@@ -7,7 +7,7 @@ import {
   Code, Terminal, Key, History, ChevronDown, ChevronRight,
   User, Lock, LogOut, Trash2,
   ArrowUpDown, SlidersHorizontal, Package,
-  TrendingUp, TrendingDown, Minus, Copy, ExternalLink, Download,
+  TrendingUp, TrendingDown, Minus, Copy, ExternalLink, Download, Info,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -15,6 +15,13 @@ import './index.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const SEVERITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3 };
+
+const TOAST_TYPES = {
+  success: { icon: CheckCircle2 },
+  error:   { icon: XCircle },
+  warning: { icon: AlertTriangle },
+  info:    { icon: Info },
+};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -191,7 +198,7 @@ function AIMarkdown({ children }) {
 
 function copyText(text) {
   navigator.clipboard.writeText(text).catch(() => {});
-  window.dispatchEvent(new CustomEvent('app:toast', { detail: { message: `Copied: ${text}` } }));
+  window.dispatchEvent(new CustomEvent('app:toast', { detail: { message: `Copied: ${text}`, type: 'success' } }));
 }
 
 function VulnCard({ vuln, isNew = false }) {
@@ -363,14 +370,53 @@ function SeverityDonut({ critical, high, medium, low }) {
   );
 }
 
-// ─── Toast ───────────────────────────────────────────────────────────────────
+// ─── Toast Stack ─────────────────────────────────────────────────────────────
 
-function Toast({ message }) {
-  if (!message) return null;
+function ToastItem({ id, message, type = 'success', onDismiss, duration = 3000 }) {
+  const cfg = TOAST_TYPES[type] || TOAST_TYPES.success;
+  const Icon = cfg.icon;
+  const remaining = useRef(duration);
+  const timerStart = useRef(null);
+  const timerRef = useRef(null);
+  const onDismissRef = useRef(onDismiss);
+  const [hovered, setHovered] = useState(false);
+  useEffect(() => { onDismissRef.current = onDismiss; }, [onDismiss]);
+
+  useEffect(() => {
+    timerStart.current = Date.now();
+    timerRef.current = setTimeout(() => onDismissRef.current(id), remaining.current);
+    return () => clearTimeout(timerRef.current);
+  }, [id]);
+
+  const handleMouseEnter = () => {
+    clearTimeout(timerRef.current);
+    remaining.current = Math.max(0, remaining.current - (Date.now() - timerStart.current));
+    setHovered(true);
+  };
+  const handleMouseLeave = () => {
+    timerStart.current = Date.now();
+    timerRef.current = setTimeout(() => onDismissRef.current(id), remaining.current);
+    setHovered(false);
+  };
+
   return (
-    <div className="toast">
-      <CheckCircle2 size={14} />
-      {message}
+    <div className={`toast toast-${type}`}
+         onMouseEnter={handleMouseEnter}
+         onMouseLeave={handleMouseLeave}>
+      <Icon size={15} />
+      <span className="toast-message">{message}</span>
+      <button className="toast-dismiss" onClick={() => onDismissRef.current(id)}>✕</button>
+      <div className={`toast-bar${hovered ? ' toast-bar-paused' : ''}`}
+           style={{ animationDuration: `${duration}ms` }} />
+    </div>
+  );
+}
+
+function ToastStack({ toasts, onDismiss }) {
+  if (!toasts.length) return null;
+  return (
+    <div className="toast-stack">
+      {toasts.map(t => <ToastItem key={t.id} {...t} onDismiss={onDismiss} />)}
     </div>
   );
 }
@@ -390,16 +436,16 @@ function ExportBar({ repoUrl, results, allVulns }) {
 
   const handleMarkdown = () => {
     downloadFile(generateMarkdown(repoUrl, results, allVulns), `securescan-${slug}-${ts}.md`, 'text/markdown');
-    window.dispatchEvent(new CustomEvent('app:toast', { detail: { message: 'Markdown report downloaded' } }));
+    window.dispatchEvent(new CustomEvent('app:toast', { detail: { message: 'Markdown report downloaded', type: 'success' } }));
   };
 
   const handleCSV = () => {
     if (allVulns.length === 0) {
-      window.dispatchEvent(new CustomEvent('app:toast', { detail: { message: 'No vulnerabilities to export' } }));
+      window.dispatchEvent(new CustomEvent('app:toast', { detail: { message: 'No vulnerabilities to export', type: 'warning' } }));
       return;
     }
     downloadFile(generateCSV(allVulns), `securescan-${slug}-${ts}.csv`, 'text/csv');
-    window.dispatchEvent(new CustomEvent('app:toast', { detail: { message: 'CSV downloaded' } }));
+    window.dispatchEvent(new CustomEvent('app:toast', { detail: { message: 'CSV downloaded', type: 'success' } }));
   };
 
   return (
@@ -938,13 +984,27 @@ function ScannerApp({ apiFetch }) {
       setScanComplete(true);
       setScanDuration(((Date.now() - scanStartRef.current) / 1000).toFixed(1));
       setTimeout(() => setScanComplete(false), 1800);
-      // Celebrate a clean result
-      const vulnCount = Object.keys(data.results || {})
+      // Scan result toast + confetti for clean
+      const scanVulns = Object.keys(data.results || {})
         .filter(k => k !== 'ai_review')
-        .reduce((sum, k) => sum + (data.results[k]?.vulnerabilities?.length || 0), 0);
+        .flatMap(k => data.results[k]?.vulnerabilities || []);
+      const vulnCount = scanVulns.length;
+      const critCount = scanVulns.filter(v => v.severity?.toLowerCase() === 'critical').length;
       if (vulnCount === 0) {
         confetti({ particleCount: 130, spread: 80, origin: { y: 0.55 },
           colors: ['#58a6ff', '#d2a8ff', '#3fb950', '#ffa657', '#ffffff'] });
+        window.dispatchEvent(new CustomEvent('app:toast', { detail: { message: 'Clean scan — zero vulnerabilities!', type: 'success', duration: 5000 } }));
+      } else if (critCount > 0) {
+        window.dispatchEvent(new CustomEvent('app:toast', { detail: { message: `Scan done · ${critCount} critical · ${vulnCount} total`, type: 'error', duration: 5500 } }));
+      } else {
+        window.dispatchEvent(new CustomEvent('app:toast', { detail: { message: `Scan done · ${vulnCount} vuln${vulnCount !== 1 ? 's' : ''} found`, type: 'warning', duration: 5000 } }));
+      }
+      if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+        new Notification('SecureScan complete', {
+          body: vulnCount === 0
+            ? 'Clean! No vulnerabilities found.'
+            : `${vulnCount} vulnerabilities${critCount ? ` · ${critCount} critical` : ''}`,
+        });
       }
     } catch (err) {
       setError(err.message);
@@ -1151,9 +1211,8 @@ function ScannerApp({ apiFetch }) {
 function App() {
   const [credentials, setCredentials] = useState(() => sessionStorage.getItem('auth') || null);
   const [view, setView] = useState(() => new URLSearchParams(window.location.search).get('view') || 'scanner');
-  const [toastMsg, setToastMsg] = useState(null);
+  const [toasts, setToasts] = useState([]);
   const [navHidden, setNavHidden] = useState(false);
-  const toastTimer = useRef(null);
   const lastScrollY = useRef(0);
   const navigateRef = useRef(null);
 
@@ -1178,16 +1237,21 @@ function App() {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
+  const dismissToast = useCallback((id) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+
+  const addToast = useCallback((detail) => {
+    const id = Date.now() + Math.random();
+    setToasts(prev => [...prev.slice(-3), { id, ...detail }]);
+  }, []);
+
   // Toast notification listener
   useEffect(() => {
-    const handler = (e) => {
-      if (toastTimer.current) clearTimeout(toastTimer.current);
-      setToastMsg(e.detail.message);
-      toastTimer.current = setTimeout(() => setToastMsg(null), 2200);
-    };
+    const handler = (e) => addToast(e.detail);
     window.addEventListener('app:toast', handler);
     return () => window.removeEventListener('app:toast', handler);
-  }, []);
+  }, [addToast]);
 
   // Hide nav on scroll down, reveal on scroll up
   useEffect(() => {
@@ -1220,6 +1284,13 @@ function App() {
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, []);
+
+  // Request browser notification permission once on login
+  useEffect(() => {
+    if (credentials && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, [credentials]);
 
   // Cursor spotlight + 3D tilt for cards (event delegation — no per-card hooks needed)
   useEffect(() => {
@@ -1265,7 +1336,7 @@ function App() {
   return (
     <>
       <AmbientBackground />
-      <Toast message={toastMsg} />
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
       {!credentials
         ? <LoginPage onLogin={handleLogin} />
         : <>
