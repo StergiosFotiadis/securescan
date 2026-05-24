@@ -1003,7 +1003,16 @@ function ScannerApp({ apiFetch }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ repo_url: repoUrl, github_token: githubToken }),
       });
-      if (!response.ok) { const e = await response.json(); throw new Error(e.detail || 'Scan failed'); }
+      if (!response.ok) {
+        const ct = response.headers.get('content-type') || '';
+        let detail = `Scan failed (${response.status} ${response.statusText})`;
+        if (ct.includes('application/json')) {
+          try { const e = await response.json(); if (e.detail) detail = e.detail; } catch {}
+        } else if (response.status === 504 || response.status === 502) {
+          detail = 'Scan timed out — the repository may be too large, or the server is overloaded. Try again or scan a smaller repo.';
+        }
+        throw new Error(detail);
+      }
       setScanStatus({ detect: 'done', scanners: 'scanning', ai: 'scanning' });
       const data = await response.json();
       localStorage.setItem('last_repo_url', repoUrl);
