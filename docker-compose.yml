@@ -7,6 +7,7 @@ services:
       dockerfile: Dockerfile
     environment:
       - ANTHROPIC_API_KEY
+      - SCAN_API_KEY
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /tmp:/tmp

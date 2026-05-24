@@ -3,7 +3,7 @@ import os
 from fastapi import FastAPI
 # pyrefly: ignore [missing-import]
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import scan
+from app.routers import scan, pr_scan
 
 app = FastAPI(title="SecureScan API")
 
@@ -25,3 +25,4 @@ def health_check():
     }
 
 app.include_router(scan.router)
+app.include_router(pr_scan.router)
