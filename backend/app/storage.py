@@ -34,15 +34,18 @@ def get_history(repo_url: str) -> List[Dict[str, str]]:
     return data.get(_normalize(repo_url), [])
 
 
-def append_review(repo_url: str, ai_output: str) -> None:
+def append_review(repo_url: str, ai_output: str, plan_output: str = None) -> None:
     data = _load(STORAGE_PATH)
     key = _normalize(repo_url)
     if key not in data:
         data[key] = []
-    data[key].append({
+    entry = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "ai_output": ai_output,
-    })
+    }
+    if plan_output:
+        entry["plan_output"] = plan_output
+    data[key].append(entry)
     _save(STORAGE_PATH, data)
 
 

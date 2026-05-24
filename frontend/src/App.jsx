@@ -8,6 +8,7 @@ import {
   User, Lock, LogOut, Trash2,
   ArrowUpDown, SlidersHorizontal, Package,
   TrendingUp, TrendingDown, Minus, Copy, ExternalLink, Download, Info,
+  Wrench,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -192,6 +193,22 @@ function AIMarkdown({ children }) {
   return (
     <div className="ai-content">
       <ReactMarkdown remarkPlugins={[remarkGfm]}>{children}</ReactMarkdown>
+    </div>
+  );
+}
+
+function RemediationPlan({ planOutput, error }) {
+  if (error) {
+    return (
+      <div className="remediation-plan remediation-error">
+        <div className="remediation-error-msg"><AlertTriangle size={15} /> Plan generation failed: {error}</div>
+      </div>
+    );
+  }
+  if (!planOutput) return null;
+  return (
+    <div className="remediation-plan">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{planOutput}</ReactMarkdown>
     </div>
   );
 }
@@ -571,6 +588,17 @@ function PreviousReviewItem({ review, index, total }) {
       {open && (
         <div style={{ padding: '0 1rem 1rem', borderTop: '1px solid rgba(210,168,255,0.15)' }}>
           <AIMarkdown>{review.ai_output}</AIMarkdown>
+          {review.plan_output && (
+            <>
+              <div className="history-plan-divider">
+                <Wrench size={13} style={{ color: '#3fb950' }} />
+                <span>Remediation Plan</span>
+              </div>
+              <div className="remediation-card remediation-card-compact">
+                <RemediationPlan planOutput={review.plan_output} />
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -1195,6 +1223,21 @@ function ScannerApp({ apiFetch }) {
                     <div className="ai-content" style={{ color: '#ff7b72' }}>
                       Error: {results.results.ai_review.error || 'Unknown error occurred during AI review.'}
                     </div>
+                  </div>
+                </RevealCard>
+              )}
+
+              {(results.remediation_plan?.ai_output || results.remediation_plan?.status === 'error') && (
+                <RevealCard className="results-section" delay={0.2}>
+                  <h2 className="section-title">
+                    <Wrench size={24} color="#3fb950" />
+                    <span className="section-title-text">Remediation Plan</span>
+                  </h2>
+                  <div className="remediation-card">
+                    <RemediationPlan
+                      planOutput={results.remediation_plan.ai_output}
+                      error={results.remediation_plan.status === 'error' ? results.remediation_plan.error : null}
+                    />
                   </div>
                 </RevealCard>
               )}

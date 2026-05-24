@@ -2116,6 +2116,154 @@ header {
   pointer-events: none;
 }
 
+/* ─── Remediation Plan ───────────────────────────────────────────────────── */
+
+.remediation-card {
+  background: linear-gradient(135deg, rgba(63,185,80,0.06) 0%, rgba(63,185,80,0.02) 100%);
+  border: 1px solid rgba(63,185,80,0.22);
+  border-radius: 14px;
+  padding: 1.75rem 2rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.remediation-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #3fb950, rgba(63,185,80,0));
+  border-radius: 14px 14px 0 0;
+}
+
+.remediation-card-compact {
+  padding: 1.25rem 1.5rem;
+  margin-top: 0.5rem;
+}
+
+.remediation-plan {
+  color: var(--text-primary);
+  line-height: 1.75;
+  font-size: 0.93rem;
+}
+
+.remediation-plan h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #3fb950;
+  margin: 1.4rem 0 0.5rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid rgba(63,185,80,0.2);
+  letter-spacing: 0.01em;
+}
+
+.remediation-plan h2:first-child {
+  margin-top: 0;
+}
+
+.remediation-plan h3 {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #7ee787;
+  margin: 1.1rem 0 0.35rem;
+}
+
+.remediation-plan p {
+  margin: 0.4rem 0;
+  color: var(--text-secondary);
+}
+
+.remediation-plan ol,
+.remediation-plan ul {
+  padding-left: 1.4rem;
+  margin: 0.4rem 0 0.8rem;
+}
+
+.remediation-plan li {
+  margin: 0.35rem 0;
+  color: var(--text-secondary);
+}
+
+.remediation-plan li::marker {
+  color: #3fb950;
+}
+
+.remediation-plan code {
+  background: rgba(63,185,80,0.12);
+  border: 1px solid rgba(63,185,80,0.2);
+  border-radius: 4px;
+  padding: 0.12em 0.45em;
+  font-size: 0.85em;
+  font-family: 'Fira Code', 'Cascadia Code', monospace;
+  color: #7ee787;
+}
+
+.remediation-plan pre {
+  background: rgba(13,17,23,0.7);
+  border: 1px solid rgba(63,185,80,0.2);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+
+.remediation-plan pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #e6edf3;
+  font-size: 0.86rem;
+}
+
+.remediation-plan input[type="checkbox"] {
+  accent-color: #3fb950;
+  margin-right: 0.4rem;
+}
+
+.remediation-plan strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.remediation-plan blockquote {
+  border-left: 3px solid rgba(63,185,80,0.4);
+  padding-left: 1rem;
+  margin: 0.5rem 0;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.remediation-error {
+  padding: 1rem 1.5rem;
+}
+
+.remediation-error-msg {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #ff7b72;
+  font-size: 0.9rem;
+}
+
+.history-plan-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1.25rem 0 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #3fb950;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.history-plan-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(63,185,80,0.2);
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .logo { font-size: 2.5rem; }

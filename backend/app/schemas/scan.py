@@ -23,8 +23,10 @@ class ModuleResult(BaseModel):
 class PreviousReview(BaseModel):
     timestamp: str
     ai_output: str
+    plan_output: Optional[str] = None
 
 class ScanResponse(BaseModel):
     project_types: List[str]
     results: Dict[str, ModuleResult]
+    remediation_plan: Optional[ModuleResult] = None
     previous_reviews: List[PreviousReview] = []

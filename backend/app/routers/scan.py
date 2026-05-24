@@ -16,6 +16,7 @@ from app.scanners import (
     go_scanner,
     rust_scanner,
     ai_reviewer,
+    remediation_planner,
 )
 
 router = APIRouter()
@@ -129,11 +130,7 @@ async def run_scan(request: ScanRequest):
         # AI code review always runs — it is language-agnostic
         results["ai_review"] = await ai_reviewer.review(repo_path, project_types)
 
-        # Persist the new AI review if it succeeded
-        if results["ai_review"].status == "done" and results["ai_review"].ai_output:
-            storage.append_review(request.repo_url, results["ai_review"].ai_output)
-
-        # Persist vulnerability results for every scan (empty list is a valid baseline)
+        # Collect all vulnerabilities for remediation planning
         all_vulns = []
         for ecosystem in SCANNER_REGISTRY:
             if ecosystem in project_types:
@@ -148,11 +145,27 @@ async def run_scan(request: ScanRequest):
                             "cve_id": v.cve_id,
                             "scanner_type": v.scanner_type,
                         })
+
+        # Generate remediation plan
+        ai_review_output = (results["ai_review"].ai_output or "") if results["ai_review"].status == "done" else ""
+        remediation_result = await remediation_planner.plan(
+            project_types=project_types,
+            vulnerabilities=all_vulns,
+            ai_review_output=ai_review_output,
+        )
+
+        # Persist AI review and plan together
+        if results["ai_review"].status == "done" and results["ai_review"].ai_output:
+            plan_text = remediation_result.ai_output if remediation_result.status == "done" else None
+            storage.append_review(request.repo_url, results["ai_review"].ai_output, plan_text)
+
+        # Persist vulnerability results
         storage.append_vuln_scan(request.repo_url, all_vulns, project_types)
 
         return ScanResponse(
             project_types=project_types,
             results=results,
+            remediation_plan=remediation_result,
             previous_reviews=previous_reviews,
         )
 
