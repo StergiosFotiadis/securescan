@@ -3,6 +3,7 @@ import os
 from fastapi import APIRouter, Depends, Header, HTTPException
 
 from app.schemas.pr_scan import PRScanRequest, PRScanResponse
+from app.scanners import pr_scanner
 
 router = APIRouter()
 
@@ -20,9 +21,12 @@ async def scan_pr(
     req: PRScanRequest,
     _: None = Depends(verify_api_key),
 ):
+    result = await pr_scanner.scan_pr(req.repo, req.pr_number)
     return PRScanResponse(
-        status="received",
+        status=result["status"],
         repo=req.repo,
         pr_number=req.pr_number,
-        findings=[],
+        findings=result["findings"],
+        kb_used=result["kb_used"],
+        error=result["error"],
     )

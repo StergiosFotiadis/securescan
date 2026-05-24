@@ -8,6 +8,8 @@ services:
     environment:
       - ANTHROPIC_API_KEY
       - SCAN_API_KEY
+      - GITHUB_TOKEN
+      - KNOWLEDGE_BASE_REPO
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /tmp:/tmp

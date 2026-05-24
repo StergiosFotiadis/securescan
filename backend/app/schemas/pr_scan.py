@@ -21,3 +21,5 @@ class PRScanResponse(BaseModel):
     repo: str
     pr_number: int
     findings: List[PRFinding] = []
+    kb_used: bool = False
+    error: Optional[str] = None
