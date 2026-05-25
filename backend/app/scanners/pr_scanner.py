@@ -15,7 +15,7 @@ from app.schemas.pr_scan import PRFinding
 
 
 GITHUB_API = "https://api.github.com"
-DEFAULT_KB_REPO = "TechFlow-Labs/ai-library"
+DEFAULT_KB_REPO = "TechFlow-Labs/techflowlabs-knowledge"
 
 
 async def fetch_pr_diff(repo: str, pr_number: int, token: Optional[str]) -> str:
