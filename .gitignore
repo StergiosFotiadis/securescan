@@ -27,3 +27,6 @@ dist-ssr/
 # Temporary / Scan Outputs
 raw_python_output.json
 dummy_repos/
+
+# Personal project notes
+securescan-recap.md

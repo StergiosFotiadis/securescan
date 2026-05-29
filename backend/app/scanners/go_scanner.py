@@ -3,6 +3,36 @@ import subprocess
 from app.schemas.scan import ModuleResult, Vulnerability
 
 
+def _osv_severity(osv: dict) -> str:
+    # Prefer explicit severity label from database_specific (Go vuln DB convention)
+    db_sev = osv.get("database_specific", {}).get("severity", "")
+    if isinstance(db_sev, str) and db_sev.lower() in ("critical", "high", "medium", "low"):
+        return db_sev.lower()
+    # Fall back to CVSS impact heuristic from severity array
+    for entry in osv.get("severity", []):
+        score = entry.get("score", "")
+        if score:
+            return _cvss_vector_to_severity(score)
+    return "high"
+
+
+def _cvss_vector_to_severity(vector: str) -> str:
+    parts = {}
+    for segment in vector.split("/"):
+        if ":" in segment:
+            k, v = segment.split(":", 1)
+            parts[k] = v
+    c, i, a = parts.get("C", "N"), parts.get("I", "N"), parts.get("A", "N")
+    highs = sum(1 for x in (c, i, a) if x == "H")
+    if highs == 3:
+        return "critical"
+    if highs >= 1:
+        return "high"
+    if any(x == "M" for x in (c, i, a)):
+        return "medium"
+    return "low"
+
+
 async def scan(repo_path: str) -> ModuleResult:
     """Scan Go projects for vulnerabilities using govulncheck."""
     try:
@@ -67,11 +97,12 @@ async def scan(repo_path: str) -> ModuleResult:
             module_path = module_info.get("module", "unknown")
             version = module_info.get("version", "unknown")
 
+            severity = _osv_severity(osv)
             vulns.append(
                 Vulnerability(
                     package_name=module_path,
                     version=version,
-                    severity="high",
+                    severity=severity,
                     description=osv.get("details", "No description available")[:500],
                     cve_id=cve_id,
                     scanner_type="govulncheck"

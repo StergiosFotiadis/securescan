@@ -14,11 +14,28 @@ class Vulnerability(BaseModel):
     cve_id: Optional[str] = None
     scanner_type: Optional[str] = None
 
+class AIFinding(BaseModel):
+    file: str
+    line: Optional[int] = None
+    severity: str
+    category: str
+    description: str
+    evidence: Optional[str] = None
+    cwe_id: Optional[str] = None
+    remediation: Optional[str] = None
+
+class BonusInsights(BaseModel):
+    dependency_risk_score: str  # LOW | MEDIUM | HIGH
+    secret_exposure_detected: bool
+    attack_surface_summary: str
+    recommended_priority_fix: str
+
 class ModuleResult(BaseModel):
     status: str
     vulnerabilities: List[Vulnerability] = []
     error: Optional[str] = None
     ai_output: Optional[str] = None
+    ai_findings: List[AIFinding] = []
 
 class PreviousReview(BaseModel):
     timestamp: str
@@ -30,3 +47,4 @@ class ScanResponse(BaseModel):
     results: Dict[str, ModuleResult]
     remediation_plan: Optional[ModuleResult] = None
     previous_reviews: List[PreviousReview] = []
+    bonus_insights: Optional[BonusInsights] = None

@@ -70,10 +70,12 @@ async def scan(repo_path: str) -> ModuleResult:
             version = dep.get("version", "unknown")
             
             for v in dep.get("vulns", []):
+                raw_sev = (v.get("severity") or "high").lower()
+                severity = raw_sev if raw_sev in ("critical", "high", "medium", "low") else "high"
                 vulns.append(Vulnerability(
                     package_name=dep_name,
                     version=version,
-                    severity="high",
+                    severity=severity,
                     description=v.get("description", "Vulnerability detected"),
                     cve_id=v.get("id", "Unknown"),
                     scanner_type="pip-audit"

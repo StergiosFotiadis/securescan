@@ -2,9 +2,10 @@ import os
 import shutil
 import uuid
 import subprocess
+from typing import List, Dict
 # pyrefly: ignore [missing-import]
 from fastapi import APIRouter, HTTPException
-from app.schemas.scan import ScanRequest, ScanResponse, PreviousReview
+from app.schemas.scan import ScanRequest, ScanResponse, PreviousReview, BonusInsights, AIFinding
 from app import storage
 from app.scanners import (
     detector,
@@ -60,6 +61,58 @@ def clone_repo(repo_url: str, token: str = None) -> str:
                 f"Error: {e.stderr.decode() if e.stderr else str(e)}"
             ),
         )
+
+
+def _compute_bonus_insights(
+    all_vulns: List[Dict],
+    ai_findings: List[AIFinding],
+    project_types: List[str],
+) -> BonusInsights:
+    secret_keywords = {"secret", "credential", "api key", "token", "password", "hardcoded", "private key"}
+    secret_found = any(
+        any(kw in (f.category or "").lower() or kw in (f.description or "").lower() for kw in secret_keywords)
+        for f in ai_findings
+    )
+
+    severities = {v.get("severity", "low").lower() for v in all_vulns}
+    if "critical" in severities or "high" in severities:
+        dep_risk = "HIGH"
+    elif "medium" in severities:
+        dep_risk = "MEDIUM"
+    else:
+        dep_risk = "LOW"
+
+    total_dep = len(all_vulns)
+    total_code = len(ai_findings)
+    critical_dep = sum(1 for v in all_vulns if v.get("severity", "").lower() == "critical")
+    surface = (
+        f"Scanned a {', '.join(project_types) if project_types else 'unknown'} project. "
+        f"Found {total_dep} dependency vulnerabilities ({critical_dep} critical) "
+        f"and {total_code} code-level issue(s) from AI review."
+    )
+
+    order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+    top_code = min(ai_findings, key=lambda f: order.get(f.severity.lower(), 4), default=None)
+    top_dep = min(all_vulns, key=lambda v: order.get(v.get("severity", "low").lower(), 4), default=None)
+
+    if top_code and top_dep:
+        if order.get(top_code.severity.lower(), 4) <= order.get(top_dep.get("severity", "low").lower(), 4):
+            priority = f"[CODE] {top_code.severity.upper()}: {top_code.description} in {top_code.file}"
+        else:
+            priority = f"[DEP] {top_dep.get('severity','high').upper()}: {top_dep.get('package_name')} v{top_dep.get('version')} — {top_dep.get('cve_id','')}"
+    elif top_code:
+        priority = f"[CODE] {top_code.severity.upper()}: {top_code.description} in {top_code.file}"
+    elif top_dep:
+        priority = f"[DEP] {top_dep.get('severity','high').upper()}: {top_dep.get('package_name')} v{top_dep.get('version')} — {top_dep.get('cve_id','')}"
+    else:
+        priority = "No issues found."
+
+    return BonusInsights(
+        dependency_risk_score=dep_risk,
+        secret_exposure_detected=secret_found,
+        attack_surface_summary=surface,
+        recommended_priority_fix=priority,
+    )
 
 
 def cleanup(repo_path: str) -> None:
@@ -162,11 +215,15 @@ async def run_scan(request: ScanRequest):
         # Persist vulnerability results
         storage.append_vuln_scan(request.repo_url, all_vulns, project_types)
 
+        ai_findings = results["ai_review"].ai_findings if results["ai_review"].status == "done" else []
+        bonus_insights = _compute_bonus_insights(all_vulns, ai_findings, project_types)
+
         return ScanResponse(
             project_types=project_types,
             results=results,
             remediation_plan=remediation_result,
             previous_reviews=previous_reviews,
+            bonus_insights=bonus_insights,
         )
 
     finally:

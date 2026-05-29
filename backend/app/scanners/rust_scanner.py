@@ -5,12 +5,23 @@ from app.schemas.scan import ModuleResult, Vulnerability
 
 
 def _cvss_to_severity(cvss_str: str | None) -> str:
-    """Derive a severity label from a CVSS v3 vector string score."""
+    """Derive a severity label from a CVSS v3 vector string using CIA impact metrics."""
     if not cvss_str:
         return "high"
-    # CVSS string format: "CVSS:3.1/AV:N/AC:L/..." — no score embedded here.
-    # cargo-audit sometimes omits numeric score; default to high.
-    return "high"
+    parts = {}
+    for segment in cvss_str.split("/"):
+        if ":" in segment:
+            k, v = segment.split(":", 1)
+            parts[k] = v
+    c, i, a = parts.get("C", "N"), parts.get("I", "N"), parts.get("A", "N")
+    highs = sum(1 for x in (c, i, a) if x == "H")
+    if highs == 3:
+        return "critical"
+    if highs >= 1:
+        return "high"
+    if any(x == "M" for x in (c, i, a)):
+        return "medium"
+    return "low"
 
 
 async def scan(repo_path: str) -> ModuleResult:
@@ -56,7 +67,8 @@ async def scan(repo_path: str) -> ModuleResult:
             aliases = advisory.get("aliases", [])
             cve_id = next((a for a in aliases if a.startswith("CVE-")), advisory.get("id"))
 
-            severity = _cvss_to_severity(advisory.get("cvss"))
+            raw_sev = (advisory.get("severity") or "").lower()
+            severity = raw_sev if raw_sev in ("critical", "high", "medium", "low") else _cvss_to_severity(advisory.get("cvss"))
 
             vulns.append(
                 Vulnerability(
