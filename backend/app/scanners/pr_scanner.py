@@ -1,5 +1,4 @@
 import os
-import json
 import re
 import shutil
 import subprocess
@@ -9,13 +8,30 @@ from typing import List, Optional, Tuple
 # pyrefly: ignore [missing-import]
 import httpx
 # pyrefly: ignore [missing-import]
-from anthropic import AsyncAnthropic
+from langchain_anthropic import ChatAnthropic  # type: ignore[import-untyped]
+from pydantic import BaseModel
 
 from app.schemas.pr_scan import PRFinding
 
 
 GITHUB_API = "https://api.github.com"
 DEFAULT_KB_REPO = "TechFlow-Labs/techflowlabs-knowledge"
+KB_SECURITY_SUBPATH = os.path.join("Software Dev", "Security")
+
+IGNORED_DIFF_EXTENSIONS = {
+    ".lock", ".css", ".scss", ".sass", ".less",
+    ".svg", ".png", ".jpg", ".jpeg", ".gif", ".ico", ".webp",
+    ".md", ".txt", ".rst", ".pdf", ".map",
+}
+
+IGNORED_DIFF_FILENAMES = {
+    "package-lock.json", "yarn.lock", "poetry.lock",
+    "Gemfile.lock", "Cargo.lock", "go.sum",
+}
+
+
+class _FindingsList(BaseModel):
+    findings: List[PRFinding]
 
 
 async def fetch_pr_diff(repo: str, pr_number: int, token: Optional[str]) -> str:
@@ -27,6 +43,25 @@ async def fetch_pr_diff(repo: str, pr_number: int, token: Optional[str]) -> str:
         resp = await client.get(url, headers=headers)
         resp.raise_for_status()
         return resp.text
+
+
+def filter_diff(diff: str) -> str:
+    sections = re.split(r"(?=^diff --git )", diff, flags=re.MULTILINE)
+    kept = []
+    for section in sections:
+        if not section.strip():
+            continue
+        match = re.match(r"^diff --git a/(.+?) b/", section)
+        if not match:
+            kept.append(section)
+            continue
+        filepath = match.group(1)
+        filename = os.path.basename(filepath)
+        ext = os.path.splitext(filename)[1].lower()
+        if ext in IGNORED_DIFF_EXTENSIONS or filename in IGNORED_DIFF_FILENAMES:
+            continue
+        kept.append(section)
+    return "".join(kept)
 
 
 def clone_kb(kb_repo: str, token: str) -> str:
@@ -41,10 +76,11 @@ def clone_kb(kb_repo: str, token: str) -> str:
 
 
 def read_kb_files(kb_path: str) -> str:
+    security_path = os.path.join(kb_path, KB_SECURITY_SUBPATH)
+    if not os.path.isdir(security_path):
+        return ""
     parts: List[str] = []
-    for root, _dirs, files in os.walk(kb_path):
-        if ".git" in root.split(os.sep):
-            continue
+    for root, _dirs, files in os.walk(security_path):
         for f in files:
             if not f.endswith(".md"):
                 continue
@@ -69,42 +105,24 @@ def build_prompt(diff: str, kb_content: str) -> str:
         if kb_content
         else ""
     )
-    return f"""You are a security code reviewer. Analyze the pull request diff below and identify security issues.{kb_section}
-
-Return ONLY a JSON array. No markdown fences, no prose, no explanation. Each element must have:
-- "file": string — file path from the diff
-- "line": integer or null — line number where the issue occurs (best guess from the diff hunk)
-- "severity": one of "low", "medium", "high", "critical"
-- "issue": string — concise description of the problem
-- "suggestion": string — concrete fix or mitigation the developer should apply
-
-If the diff has no security issues, return an empty array: []
+    return f"""You are a security code reviewer. Analyze the pull request diff below and identify security issues. For each issue provide the file path, line number if identifiable, severity (low/medium/high/critical), a concise description of the problem, and a concrete suggestion to fix it. If there are no issues return an empty findings list.{kb_section}
 
 == PR DIFF ==
 {diff}
 """
 
 
-def parse_findings(raw: str) -> Tuple[List[PRFinding], Optional[str]]:
-    cleaned = raw.strip()
-    cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
-    cleaned = re.sub(r"\s*```$", "", cleaned)
-
+async def _call_claude(prompt: str, api_key: str) -> Tuple[List[PRFinding], Optional[str]]:
+    model = ChatAnthropic(
+        model="claude-haiku-4-5",
+        max_tokens=4000,
+        api_key=api_key,
+    ).with_structured_output(_FindingsList)
     try:
-        data = json.loads(cleaned)
-    except json.JSONDecodeError:
-        return [], f"Claude returned non-JSON output (first 200 chars): {raw[:200]}"
-
-    if not isinstance(data, list):
-        return [], "Claude returned a JSON value that is not an array"
-
-    findings: List[PRFinding] = []
-    for item in data:
-        try:
-            findings.append(PRFinding(**item))
-        except Exception:
-            continue
-    return findings, None
+        result = await model.ainvoke(prompt)
+        return result.findings, None
+    except Exception as e:
+        return [], str(e)
 
 
 async def scan_pr(repo: str, pr_number: int) -> dict:
@@ -121,7 +139,7 @@ async def scan_pr(repo: str, pr_number: int) -> dict:
     kb_repo = os.environ.get("KNOWLEDGE_BASE_REPO", DEFAULT_KB_REPO).strip() or DEFAULT_KB_REPO
 
     try:
-        diff = await fetch_pr_diff(repo, pr_number, github_token)
+        raw_diff = await fetch_pr_diff(repo, pr_number, github_token)
     except httpx.HTTPStatusError as e:
         return {
             "status": "failed",
@@ -136,6 +154,10 @@ async def scan_pr(repo: str, pr_number: int) -> dict:
             "kb_used": False,
             "error": f"Failed to fetch PR diff: {e}",
         }
+
+    diff = filter_diff(raw_diff)
+    if not diff.strip():
+        return {"status": "completed", "findings": [], "kb_used": False, "error": None}
 
     kb_content = ""
     kb_used = False
@@ -152,27 +174,11 @@ async def scan_pr(repo: str, pr_number: int) -> dict:
             cleanup(kb_path)
 
     prompt = build_prompt(diff, kb_content)
-    client = AsyncAnthropic(api_key=api_key)
+    findings, error = await _call_claude(prompt, api_key)
 
-    try:
-        response = await client.messages.create(
-            model="claude-haiku-4-5",
-            max_tokens=4000,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        raw = response.content[0].text
-    except Exception as e:
-        return {
-            "status": "failed",
-            "findings": [],
-            "kb_used": kb_used,
-            "error": f"Claude call failed: {e}",
-        }
-
-    findings, parse_err = parse_findings(raw)
     return {
-        "status": "completed",
+        "status": "completed" if error is None else "failed",
         "findings": findings,
         "kb_used": kb_used,
-        "error": parse_err,
+        "error": error,
     }

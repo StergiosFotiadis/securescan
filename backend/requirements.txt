@@ -2,5 +2,6 @@ fastapi
 uvicorn
 pydantic
 anthropic
+langchain-anthropic
 httpx
 pip-audit
